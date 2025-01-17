@@ -1,9 +1,6 @@
 # Ignore bundler config
 /.bundle
 
-# Ignore the Gemfile.lock
-Gemfile.lock
-
 # Ignore temporary files
 *.log
 *.tmp
