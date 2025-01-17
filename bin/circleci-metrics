@@ -1,0 +1,270 @@
+#!/usr/bin/env ruby
+# lib/circleci_concurrency_evaluator/cli.rb
+
+require 'thor'
+require 'tty-prompt'
+require 'json'
+require 'csv'
+require 'date'
+require 'active_support/all'
+
+require_relative 'circleci/api_service'
+require_relative 'circleci/job_analyzer'
+require_relative 'circleci/runner_calculator'
+require_relative 'circleci/data_aggregator'
+require_relative 'circleci/log_uploader'
+require_relative 'circleci/usage_report_service'
+require_relative 'circleci/cloudwatch_metrics_service'
+require_relative 'circleci/s3_upload_service'
+
+module CircleciMetrics
+  class CLI < Thor
+    desc "evaluate", "Evaluate concurrency requirements for self-hosted runners"
+
+    method_option :org, aliases: '-o', type: :string, desc: 'VCS org'
+    method_option :project, aliases: '-p', type: :string, desc: 'Project name'
+    method_option :days, aliases: '-d', type: :numeric, desc: 'Number of days to look back for pipelines', default: 30
+    method_option :pipelines_json, type: :string, desc: 'Path to JSON file with pre-fetched pipelines'
+    method_option :jobs_json, aliases: '-jjson', type: :string, desc: 'Path to JSON file with pre-fetched jobs'
+
+    def evaluate
+      prompt = TTY::Prompt.new
+
+      org = fetch_param(:org, 'CIRCLECI_ORG', prompt, "Enter your VCS org:")
+      project = fetch_param(:project, 'CIRCLECI_PROJECT', prompt, "Enter your project name:")
+      days = options[:days]
+
+      api_token = fetch_api_token(prompt)
+
+      circleci_service = Circleci::ApiService.new(api_token:, org:, project:)
+      job_analyzer = Circleci::JobAnalyzer.new
+      runner_calculator = Circleci::RunnerCalculator.new
+
+      pipelines = load_or_fetch_pipelines(circleci_service, org, project, days)
+      puts "Fetched pipelines: #{pipelines.size}"
+
+      return if pipelines.empty?
+
+      all_jobs = load_or_fetch_jobs(circleci_service, pipelines)
+      return if all_jobs.empty?
+
+      puts "Calculating peak RAM usage..."
+      peak_ram = job_analyzer.calculate_peak_ram(jobs: all_jobs)
+      puts "Peak concurrent RAM required: #{peak_ram} MB"
+
+      recommended_runners = runner_calculator.calculate_runners(peak_ram)
+      puts "Recommended number of runners (#{runner_calculator.runner_ram_gb} GB each): #{recommended_runners}"
+
+      aggregator = Circleci::DataAggregator.new(all_jobs)
+
+      aggregator.generate_csv
+    end
+
+    desc "upload", "Store aggregated CSV data into SQLite database for analysis"
+
+    method_option :csv_file_path, aliases: '-c', type: :string, required: true, desc: 'Path to the aggregated CSV file'
+    method_option :log_group_name, aliases: '-l', type: :string, default: '/CircleCi', desc: 'Log group name'
+    method_option :dry_run, type: :boolean, default: false, desc: 'Dry run mode'
+
+    def upload
+      csv_file_path = options[:csv_file_path]
+      log_group_name = options[:log_group_name]
+
+      importer = Circleci::LogUploader.new(log_group_name, dry_run: options[:dry_run])
+      importer.upload_file(csv_file_path)
+    end
+
+    desc "aggregate", "Aggregate data from an existing jobs JSON file"
+
+    method_option :jobs_json, aliases: '-j', type: :string, desc: 'Path to JSON file with jobs'
+
+    def aggregate
+      jobs_json_path = options[:jobs_json] || abort("Error: --jobs_json option is required")
+      jobs = JSON.parse(File.read(jobs_json_path))
+      aggregator = Circleci::DataAggregator.new(jobs)
+      aggregator.generate_csv
+    end
+
+    desc "usage_report", "Create usage export job, download CSV, and print file references"
+    method_option :org_id, type: :string, desc: 'Organization ID'
+    method_option :shared_org_ids, type: :array, desc: 'Shared organization IDs'
+    method_option :verbose, aliases: '-v', type: :boolean, default: false, desc: 'Enable verbose logging'
+    method_option :days_ago, type: :numeric, default: 0, desc: 'Number of days to look back from now'
+    method_option :months_ago, type: :numeric, default: nil, desc: 'Number of months to look back from now'
+    method_option :usage_export_job_id, type: :string, desc: 'Existing usage export job ID'
+    method_option :upload, type: :boolean, default: false, desc: 'Upload the usage report to CloudWatch'
+    method_option :s3_bucket, type: :string, desc: 'S3 bucket name for uploading the usage report'
+    def usage_report
+      prompt = TTY::Prompt.new
+      org_id = options[:org_id] || ENV.fetch('CIRCLECI_ORG_ID', '4f925b2b-47d2-4775-8200-af0e5e2d9806')
+
+      shared_org_ids = options[:shared_org_ids] || []
+      api_token = fetch_api_token(prompt) # ...call existing helper or use logic shown in evaluate method
+      log_level = options[:verbose] ? Logger::DEBUG : Logger::INFO
+      logger = Logger.new(STDOUT)
+      logger.level = log_level
+
+      circleci_service = Circleci::ApiService.new(api_token:, org: 'N/A', project: 'N/A', logger:)
+      usage_report_service = Circleci::UsageReportService.new(
+        circleci_service,
+        org_id,
+        shared_org_ids,
+        600,
+        logger: logger,
+        log_level: log_level
+      )
+
+      usage_export_job_id = options[:usage_export_job_id]
+      if usage_export_job_id
+        downloaded_files = usage_report_service.call(usage_export_job_id:)
+      else
+        current_time = Time.now.utc
+        if options[:months_ago]
+          months_ago = options[:months_ago]
+          if months_ago.zero?
+            start_time = current_time.beginning_of_month
+            end_time = current_time
+          else
+            start_time = (current_time - months_ago.months).beginning_of_month
+            end_time = (current_time - months_ago.months).end_of_month
+          end
+        elsif options[:days_ago]
+          days_ago = options[:days_ago]
+          if days_ago.zero?
+            start_time = current_time.beginning_of_day
+            end_time = current_time
+          else
+            start_time = (current_time - days_ago.days).beginning_of_day
+            end_time = (current_time - days_ago.days).end_of_day
+          end
+        else
+          raise "Either days_ago or months_ago must be specified"
+        end
+
+        if options[:upload] && (end_time - start_time > 14.days)
+          raise "Cannot upload data older than 14 days"
+        end
+
+        begin
+          downloaded_files = usage_report_service.call(start_time:, end_time:)
+        rescue RuntimeError => e
+          puts "Error: #{e.message}"
+          exit(1)
+        end
+      end
+
+      csv_files = downloaded_files.select { |file| file.end_with?('.csv') }
+
+      if csv_files.size == 1
+        puts "Usage report file downloaded: #{csv_files.first}"
+      else
+        puts "Usage report files downloaded:"
+        csv_files.each { |f| puts "  - #{f}" }
+      end
+
+      if options[:upload]
+        metrics_service = Circleci::CloudWatchMetricsService.new(namespace: 'CircleCI', dry_run: false)
+        csv_files.each do |file|
+          metrics_service.upload_metrics(file)
+        end
+      end
+
+      if options[:s3_bucket]
+        s3_service = Circleci::S3UploadService.new(options[:s3_bucket], logger: logger)
+        csv_files.each do |file|
+          s3_key = File.basename(file)
+          s3_service.upload_file(file, s3_key)
+        end
+      end
+    end
+
+    desc "upload_metrics", "Upload CloudWatch metrics from CSV file"
+    method_option :csv_file_path, aliases: '-c', type: :string, required: true, desc: 'Path to the CSV file'
+    method_option :namespace, aliases: '-n', type: :string, default: 'CircleCI', desc: 'CloudWatch namespace'
+    method_option :dry_run, type: :boolean, default: false, desc: 'Dry run mode'
+    def upload_metrics
+      csv_file_path = options[:csv_file_path]
+      namespace = options[:namespace]
+      dry_run = options[:dry_run]
+
+      metrics_service = Circleci::CloudWatchMetricsService.new(namespace: namespace, dry_run: dry_run)
+      metrics_service.upload_metrics(csv_file_path)
+    end
+
+    no_commands do
+      def load_or_fetch_pipelines(circleci_service, org, project, days)
+        if options[:pipelines_json]
+          puts "Loading pipelines from JSON file: #{options[:pipelines_json]}"
+          JSON.parse(File.read(options[:pipelines_json]))
+        else
+          puts "Fetching pipelines for project #{org}/#{project} that ran in the last #{days} days..."
+          pipelines = circleci_service.fetch_pipelines(days: days)
+          puts "Total pipelines fetched: #{pipelines.size}"
+
+          timestamp = Time.now.strftime('%Y%m%d%H%M%S')
+          filename = "tmp/pipelines_#{org}_#{project}_#{timestamp}.json"
+          File.write(filename, JSON.pretty_generate(pipelines))
+          puts "Pipelines exported to #{filename}"
+
+          pipelines
+        end
+      end
+
+      def load_or_fetch_jobs(circleci_service, pipelines)
+        if options[:jobs_json]
+          puts "Loading jobs from JSON file: #{options[:jobs_json]}"
+          JSON.parse(File.read(options[:jobs_json]))
+        else
+          puts "Fetching jobs for all pipelines..."
+          all_jobs = circleci_service.fetch_all_jobs(pipelines)
+          puts "Total jobs fetched: #{all_jobs.size}"
+
+          timestamp = Time.now.strftime('%Y%m%d%H%M%S')
+          filename = "tmp/jobs_#{timestamp}.json"
+          File.write(filename, JSON.pretty_generate(all_jobs))
+          puts "Jobs exported to #{filename}"
+
+          all_jobs
+        end
+      end
+
+      def fetch_param(option_key, env_var, prompt, message)
+        if options[option_key]
+          options[option_key]
+        else
+          ENV.fetch(env_var) do
+            if $stdin.tty?
+              prompt.ask(message) { |q| q.required(true) }
+            else
+              abort("Error: Environment variable #{env_var} is not set and no option provided.")
+            end
+          end
+        end
+      rescue KeyError
+        if $stdin.tty?
+          prompt.ask(message) { |q| q.required(true) }
+        else
+          abort("Error: Environment variable #{env_var} is not set and no option provided.")
+        end
+      end
+
+      def fetch_api_token(prompt)
+        ENV.fetch('CIRCLECI_API_TOKEN') do
+          if $stdin.tty?
+            prompt.mask("Enter your CircleCI API Token:") { |q| q.required(true) }
+          else
+            abort("Error: Environment variable CIRCLECI_API_TOKEN is not set and no option provided.")
+          end
+        end
+      rescue KeyError
+        if $stdin.tty?
+          prompt.mask("Enter your CircleCI API Token:") { |q| q.required(true) }
+        else
+          abort("Error: Environment variable CIRCLECI_API_TOKEN is not set and no option provided.")
+        end
+      end
+    end
+  end
+end
+
+CircleciMetrics::CLI.start(ARGV)
