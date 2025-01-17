@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'fileutils'
   spec.add_runtime_dependency 'json'
   spec.add_runtime_dependency 'logger'
+  spec.add_runtime_dependency 'rexml'
   spec.add_runtime_dependency 'thor'
   spec.add_runtime_dependency 'time'
   spec.add_runtime_dependency 'tty-progressbar'
