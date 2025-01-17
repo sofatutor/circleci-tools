@@ -37,9 +37,9 @@ module CircleciMetrics
 
       api_token = fetch_api_token(prompt)
 
-      circleci_service = Circleci::ApiService.new(api_token:, org:, project:)
-      job_analyzer = Circleci::JobAnalyzer.new
-      runner_calculator = Circleci::RunnerCalculator.new
+      circleci_service = CircleciTools::ApiService.new(api_token:, org:, project:)
+      job_analyzer = CircleciTools::JobAnalyzer.new
+      runner_calculator = CircleciTools::RunnerCalculator.new
 
       pipelines = load_or_fetch_pipelines(circleci_service, org, project, days)
       puts "Fetched pipelines: #{pipelines.size}"
@@ -56,7 +56,7 @@ module CircleciMetrics
       recommended_runners = runner_calculator.calculate_runners(peak_ram)
       puts "Recommended number of runners (#{runner_calculator.runner_ram_gb} GB each): #{recommended_runners}"
 
-      aggregator = Circleci::DataAggregator.new(all_jobs)
+      aggregator = CircleciTools::DataAggregator.new(all_jobs)
 
       aggregator.generate_csv
     end
@@ -71,7 +71,7 @@ module CircleciMetrics
       csv_file_path = options[:csv_file_path]
       log_group_name = options[:log_group_name]
 
-      importer = Circleci::LogUploader.new(log_group_name, dry_run: options[:dry_run])
+      importer = CircleciTools::LogUploader.new(log_group_name, dry_run: options[:dry_run])
       importer.upload_file(csv_file_path)
     end
 
@@ -82,7 +82,7 @@ module CircleciMetrics
     def aggregate
       jobs_json_path = options[:jobs_json] || abort("Error: --jobs_json option is required")
       jobs = JSON.parse(File.read(jobs_json_path))
-      aggregator = Circleci::DataAggregator.new(jobs)
+      aggregator = CircleciTools::DataAggregator.new(jobs)
       aggregator.generate_csv
     end
 
@@ -105,8 +105,8 @@ module CircleciMetrics
       logger = Logger.new(STDOUT)
       logger.level = log_level
 
-      circleci_service = Circleci::ApiService.new(api_token:, org: 'N/A', project: 'N/A', logger:)
-      usage_report_service = Circleci::UsageReportService.new(
+      circleci_service = CircleciTools::ApiService.new(api_token:, org: 'N/A', project: 'N/A', logger:)
+      usage_report_service = CircleciTools::UsageReportService.new(
         circleci_service,
         org_id,
         shared_org_ids,
@@ -164,14 +164,14 @@ module CircleciMetrics
       end
 
       if options[:upload]
-        metrics_service = Circleci::CloudWatchMetricsService.new(namespace: 'CircleCI', dry_run: false)
+        metrics_service = CircleciTools::CloudWatchMetricsService.new(namespace: 'CircleCI', dry_run: false)
         csv_files.each do |file|
           metrics_service.upload_metrics(file)
         end
       end
 
       if options[:s3_bucket]
-        s3_service = Circleci::S3UploadService.new(options[:s3_bucket], logger: logger)
+        s3_service = CircleciTools::S3UploadService.new(options[:s3_bucket], logger: logger)
         csv_files.each do |file|
           s3_key = File.basename(file)
           s3_service.upload_file(file, s3_key)
@@ -188,7 +188,7 @@ module CircleciMetrics
       namespace = options[:namespace]
       dry_run = options[:dry_run]
 
-      metrics_service = Circleci::CloudWatchMetricsService.new(namespace: namespace, dry_run: dry_run)
+      metrics_service = CircleciTools::CloudWatchMetricsService.new(namespace: namespace, dry_run: dry_run)
       metrics_service.upload_metrics(csv_file_path)
     end
 
