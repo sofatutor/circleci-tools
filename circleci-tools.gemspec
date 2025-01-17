@@ -15,19 +15,21 @@ Gem::Specification.new do |spec|
   spec.files         = Dir.glob('**/*').reject { |f| f.include?('circleci-tools.gemspec') }
   spec.require_paths = ['lib']
   spec.add_development_dependency 'rspec', '~> 3.10'
-  
-  spec.add_runtime_dependency 'faraday'
-  spec.add_runtime_dependency 'json'
-  spec.add_runtime_dependency 'base64'
-  spec.add_runtime_dependency 'logger'
+
+  spec.add_runtime_dependency 'activesupport'
   spec.add_runtime_dependency 'aws-sdk-cloudwatch'
+  spec.add_runtime_dependency 'aws-sdk-cloudwatchlogs'
+  spec.add_runtime_dependency 'aws-sdk-s3'
+  spec.add_runtime_dependency 'base64'
+  spec.add_runtime_dependency 'csv'
+  spec.add_runtime_dependency 'date'
+  spec.add_runtime_dependency 'faraday'
+  spec.add_runtime_dependency 'fileutils'
+  spec.add_runtime_dependency 'json'
+  spec.add_runtime_dependency 'logger'
+  spec.add_runtime_dependency 'thor'
   spec.add_runtime_dependency 'time'
   spec.add_runtime_dependency 'tty-progressbar'
-  spec.add_runtime_dependency 'aws-sdk-cloudwatchlogs'
-  spec.add_runtime_dependency 'csv'
   spec.add_runtime_dependency 'tty-prompt'
-  spec.add_runtime_dependency 'date'
-  spec.add_runtime_dependency 'fileutils'
   spec.add_runtime_dependency 'zlib'
-  spec.add_runtime_dependency 'aws-sdk-s3'
 end

@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     circleci-tools (0.1.0)
+      activesupport
       aws-sdk-cloudwatch
       aws-sdk-cloudwatchlogs
       aws-sdk-s3
@@ -12,6 +13,7 @@ PATH
       fileutils
       json
       logger
+      thor
       time
       tty-progressbar
       tty-prompt
@@ -20,6 +22,19 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
+    activesupport (8.0.1)
+      base64
+      benchmark (>= 0.3)
+      bigdecimal
+      concurrent-ruby (~> 1.0, >= 1.3.1)
+      connection_pool (>= 2.2.5)
+      drb
+      i18n (>= 1.6, < 2)
+      logger (>= 1.4.2)
+      minitest (>= 5.1)
+      securerandom (>= 0.3)
+      tzinfo (~> 2.0, >= 2.0.5)
+      uri (>= 0.13.1)
     aws-eventstream (1.3.0)
     aws-partitions (1.1039.0)
     aws-sdk-cloudwatch (1.109.0)
@@ -43,10 +58,15 @@ GEM
     aws-sigv4 (1.11.0)
       aws-eventstream (~> 1, >= 1.0.2)
     base64 (0.2.0)
+    benchmark (0.4.0)
+    bigdecimal (3.1.9)
+    concurrent-ruby (1.3.5)
+    connection_pool (2.5.0)
     csv (3.3.2)
     date (3.4.1)
     diff-lcs (1.5.1)
     docile (1.4.1)
+    drb (2.2.1)
     faraday (2.12.2)
       faraday-net_http (>= 2.0, < 3.5)
       json
@@ -54,9 +74,12 @@ GEM
     faraday-net_http (3.4.0)
       net-http (>= 0.5.0)
     fileutils (1.7.3)
+    i18n (1.14.6)
+      concurrent-ruby (~> 1.0)
     jmespath (1.6.2)
     json (2.9.1)
     logger (1.6.5)
+    minitest (5.25.4)
     net-http (0.6.0)
       uri
     pastel (0.8.0)
@@ -74,6 +97,7 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.2)
+    securerandom (0.4.1)
     simplecov (0.22.0)
       docile (~> 1.1)
       simplecov-html (~> 0.11)
@@ -81,6 +105,7 @@ GEM
     simplecov-html (0.13.1)
     simplecov_json_formatter (0.1.4)
     strings-ansi (0.2.0)
+    thor (1.3.2)
     time (0.4.1)
       date
     tty-color (0.6.0)
@@ -98,6 +123,8 @@ GEM
       tty-screen (~> 0.8)
       wisper (~> 2.0)
     tty-screen (0.8.2)
+    tzinfo (2.0.6)
+      concurrent-ruby (~> 1.0)
     unicode-display_width (2.6.0)
     uri (1.0.2)
     wisper (2.0.1)
