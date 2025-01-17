@@ -36,6 +36,7 @@ module CircleciTools
         next if stopped_at < two_weeks_ago
 
         events << {
+          project_name: row['PROJECT_NAME'],
           workflow_name: row['WORKFLOW_NAME'],
           job_name: row['JOB_NAME'],
           started_at: started_at,
@@ -54,6 +55,7 @@ module CircleciTools
       metrics = []
       events.each do |event|
         dimensions = [
+          { name: 'Project', value: event[:project_name] },
           { name: 'WorkflowName', value: event[:workflow_name] },
           { name: 'JobName', value: event[:job_name] }
         ]
