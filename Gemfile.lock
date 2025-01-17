@@ -13,6 +13,7 @@ PATH
       fileutils
       json
       logger
+      rexml
       thor
       time
       tty-progressbar
@@ -84,6 +85,7 @@ GEM
       uri
     pastel (0.8.0)
       tty-color (~> 0.5)
+    rexml (3.4.0)
     rspec (3.13.0)
       rspec-core (~> 3.13.0)
       rspec-expectations (~> 3.13.0)
