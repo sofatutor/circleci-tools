@@ -142,10 +142,6 @@ module CircleciMetrics
           raise "Either days_ago or months_ago must be specified"
         end
 
-        if options[:upload] && (end_time - start_time > 14.days)
-          raise "Cannot upload data older than 14 days"
-        end
-
         begin
           downloaded_files = usage_report_service.call(start_time:, end_time:)
         rescue RuntimeError => e
