@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
-# lib/circleci_concurrency_evaluator/cli.rb
+
+$LOAD_PATH.unshift(File.expand_path('../lib/circleci-tools', __dir__))
 
 require 'thor'
 require 'tty-prompt'
@@ -8,14 +9,14 @@ require 'csv'
 require 'date'
 require 'active_support/all'
 
-require_relative 'circleci/api_service'
-require_relative 'circleci/job_analyzer'
-require_relative 'circleci/runner_calculator'
-require_relative 'circleci/data_aggregator'
-require_relative 'circleci/log_uploader'
-require_relative 'circleci/usage_report_service'
-require_relative 'circleci/cloudwatch_metrics_service'
-require_relative 'circleci/s3_upload_service'
+require 'api_service'
+require 'job_analyzer'
+require 'runner_calculator'
+require 'data_aggregator'
+require 'log_uploader'
+require 'usage_report_service'
+require 'cloudwatch_metrics_service'
+require 's3_upload_service'
 
 module CircleciMetrics
   class CLI < Thor
