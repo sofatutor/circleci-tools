@@ -46,6 +46,7 @@ GEM
     csv (3.3.2)
     date (3.4.1)
     diff-lcs (1.5.1)
+    docile (1.4.1)
     faraday (2.12.2)
       faraday-net_http (>= 2.0, < 3.5)
       json
@@ -73,6 +74,12 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.2)
+    simplecov (0.22.0)
+      docile (~> 1.1)
+      simplecov-html (~> 0.11)
+      simplecov_json_formatter (~> 0.1)
+    simplecov-html (0.13.1)
+    simplecov_json_formatter (0.1.4)
     strings-ansi (0.2.0)
     time (0.4.1)
       date
@@ -102,6 +109,7 @@ PLATFORMS
 DEPENDENCIES
   circleci-tools!
   rspec (~> 3.10)
+  simplecov
 
 BUNDLED WITH
    2.5.23
