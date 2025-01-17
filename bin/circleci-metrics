@@ -89,10 +89,11 @@ module CircleciMetrics
     desc "usage_report", "Create usage export job, download CSV, and print file references"
     method_option :org_id, type: :string, desc: 'Organization ID'
     method_option :shared_org_ids, type: :array, desc: 'Shared organization IDs'
+    method_option :dry_run, type: :boolean, default: false, desc: 'Dry run mode'
     method_option :verbose, aliases: '-v', type: :boolean, default: false, desc: 'Enable verbose logging'
     method_option :days_ago, type: :numeric, default: 0, desc: 'Number of days to look back from now'
     method_option :months_ago, type: :numeric, default: nil, desc: 'Number of months to look back from now'
-    method_option :usage_export_job_id, type: :string, desc: 'Existing usage export job ID'
+    method_option :usage_export_job_id, aliases: 'j', type: :string, desc: 'Existing usage export job ID'
     method_option :upload, type: :boolean, default: false, desc: 'Upload the usage report to CloudWatch'
     method_option :s3_bucket, type: :string, desc: 'S3 bucket name for uploading the usage report'
     def usage_report
@@ -159,18 +160,29 @@ module CircleciMetrics
         csv_files.each { |f| puts "  - #{f}" }
       end
 
-      if options[:upload]
-        metrics_service = CircleciTools::CloudWatchMetricsService.new(namespace: 'CircleCI', dry_run: false)
-        csv_files.each do |file|
-          metrics_service.upload_metrics(file)
-        end
-      end
-
       if options[:s3_bucket]
         s3_service = CircleciTools::S3UploadService.new(options[:s3_bucket], logger: logger)
         csv_files.each do |file|
           s3_key = File.basename(file)
           s3_service.upload_file(file, s3_key)
+        end
+      end
+
+      if options[:upload]
+        if !options[:s3_bucket]
+          unless prompt.yes?("Warning: No S3 bucket specified. Events could be uploaded multiple times. Do you want to continue?")
+            puts "Operation aborted."
+            exit(1)
+          end
+        end
+
+        metrics_service = CircleciTools::CloudWatchMetricsService.new(
+          namespace: 'CircleCI',
+          dry_run: options[:dry_run],
+          s3_bucket: options[:s3_bucket]
+        )
+        csv_files.each do |file|
+          metrics_service.upload_metrics(file)
         end
       end
     end

@@ -1,7 +1,7 @@
 require 'aws-sdk-s3'
 require 'logger'
 
-module Circleci
+module CircleciTools
   class S3UploadService
     def initialize(bucket_name, logger: Logger.new(STDOUT))
       @bucket_name = bucket_name

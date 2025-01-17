@@ -35,7 +35,7 @@ module CircleciTools
 
         response = with_retries { connection.get(url, params.compact, headers) }
         break unless response
-        raise 'API Error' unless response.status == 200
+        raise "API Error: #{response.body}" unless response.status == 200
 
         data = JSON.parse(response.body)
 
@@ -61,7 +61,7 @@ module CircleciTools
 
         response = with_retries { connection.get(url, params, headers) }
         break unless response
-        raise 'API Error' unless response.status == 200
+        raise "API Error: #{response.body}" unless response.status == 200
 
         data = JSON.parse(response.body)
         workflows = data['items']
@@ -87,7 +87,7 @@ module CircleciTools
 
       response = with_retries { connection.get(url, nil, headers) }
       return [] unless response
-      raise 'API Error' unless response.status == 200
+      raise "API Error: #{response.body}" unless response.status == 200
 
       data = JSON.parse(response.body)
       data['items']
@@ -98,7 +98,7 @@ module CircleciTools
 
       response = with_retries { connection.get(url, nil, headers) }
       return nil unless response
-      raise 'API Error' unless response.status == 200
+      raise "API Error: #{response.body}" unless response.status == 200
 
       JSON.parse(response.body)
     end
@@ -139,7 +139,7 @@ module CircleciTools
       body = { start: start_time, end: end_time, shared_org_ids: shared_org_ids }
       response = with_retries { connection.post(url, body.to_json, headers.merge('Content-Type' => 'application/json')) }
       return nil unless response
-      raise 'API Error' unless response.status == 201
+      raise "API Error: #{response.body}" unless response.status == 201
 
       JSON.parse(response.body)
     end
@@ -148,7 +148,7 @@ module CircleciTools
       url = "/api/v2/organizations/#{org_id}/usage_export_job/#{usage_export_job_id}"
       response = with_retries { connection.get(url, nil, headers) }
       return nil unless response
-      raise 'API Error' unless response.status == 200
+      raise "API Error: #{response.body}" unless response.status == 200
 
       JSON.parse(response.body)
     end
