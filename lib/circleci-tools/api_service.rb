@@ -18,10 +18,6 @@ module CircleciTools
       @org = org
       @project = project
       @logger = logger
-      @connection = Faraday.new(url: BASE_URL) do |faraday|
-        faraday.request :url_encoded
-        faraday.adapter Faraday.default_adapter
-      end
     end
 
     def fetch_pipelines(days: nil)
@@ -37,10 +33,12 @@ module CircleciTools
           'mine' => false
         }
 
-        response = with_retries { @connection.get(url, params.compact, headers) }
+        response = with_retries { connection.get(url, params.compact, headers) }
         break unless response
+        raise 'API Error' unless response.status == 200
 
         data = JSON.parse(response.body)
+
         pipelines.concat(data['items'])
 
         page_token = data['next_page_token']
@@ -61,8 +59,9 @@ module CircleciTools
         params = {}
         params['page-token'] = page_token if page_token
 
-        response = with_retries { @connection.get(url, params, headers) }
+        response = with_retries { connection.get(url, params, headers) }
         break unless response
+        raise 'API Error' unless response.status == 200
 
         data = JSON.parse(response.body)
         workflows = data['items']
@@ -86,8 +85,9 @@ module CircleciTools
     def fetch_workflow_jobs(workflow_id)
       url = "/api/v2/workflow/#{workflow_id}/job"
 
-      response = with_retries { @connection.get(url, nil, headers) }
+      response = with_retries { connection.get(url, nil, headers) }
       return [] unless response
+      raise 'API Error' unless response.status == 200
 
       data = JSON.parse(response.body)
       data['items']
@@ -96,8 +96,9 @@ module CircleciTools
     def fetch_job_details(job)
       url = "/api/v2/project/#{job['project_slug']}/job/#{job['job_number']}"
 
-      response = with_retries { @connection.get(url, nil, headers) }
+      response = with_retries { connection.get(url, nil, headers) }
       return nil unless response
+      raise 'API Error' unless response.status == 200
 
       JSON.parse(response.body)
     end
@@ -136,21 +137,30 @@ module CircleciTools
     def create_usage_export_job(org_id:, start_time:, end_time:, shared_org_ids: [])
       url = "/api/v2/organizations/#{org_id}/usage_export_job"
       body = { start: start_time, end: end_time, shared_org_ids: shared_org_ids }
-      response = with_retries { @connection.post(url, body.to_json, headers.merge('Content-Type' => 'application/json')) }
+      response = with_retries { connection.post(url, body.to_json, headers.merge('Content-Type' => 'application/json')) }
       return nil unless response
-      raise "Failed to create usage export job: #{response.body}" unless response.status == 201
+      raise 'API Error' unless response.status == 201
 
       JSON.parse(response.body)
     end
 
     def get_usage_export_job(org_id:, usage_export_job_id:)
       url = "/api/v2/organizations/#{org_id}/usage_export_job/#{usage_export_job_id}"
-      response = with_retries { @connection.get(url, nil, headers) }
+      response = with_retries { connection.get(url, nil, headers) }
       return nil unless response
+      raise 'API Error' unless response.status == 200
+
       JSON.parse(response.body)
     end
 
     private
+
+    def connection
+      @connection ||= Faraday.new(url: BASE_URL) do |faraday|
+        faraday.request :url_encoded
+        faraday.adapter Faraday.default_adapter
+      end
+    end
 
     def headers
       {
