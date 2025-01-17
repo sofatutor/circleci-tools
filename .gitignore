@@ -16,3 +16,9 @@ coverage/
 
 # Ignore build artifacts
 pkg/
+
+.idea/
+.ruby-lsp/
+.vscode/
+
+tmp/
