@@ -1,0 +1,21 @@
+# Ignore bundler config
+/.bundle
+
+# Ignore the Gemfile.lock
+Gemfile.lock
+
+# Ignore temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore coverage reports
+coverage/
+
+# Ignore build artifacts
+pkg/
