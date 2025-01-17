@@ -91,6 +91,7 @@ module CircleciTools
       paths = []
       start_time_str = start_time.utc.strftime('%Y%m%d%H%M')
       end_time_str = end_time.utc.strftime('%Y%m%d%H%M')
+      FileUtils.mkdir_p('tmp')
       combined_csv_path = "tmp/usage_report_#{start_time_str}_to_#{end_time_str}.csv"
       CSV.open(combined_csv_path, 'w') do |csv|
         download_urls.each_with_index do |url, index|
