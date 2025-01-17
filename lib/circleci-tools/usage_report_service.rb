@@ -4,8 +4,9 @@ require 'logger'
 require 'fileutils'
 require 'zlib'
 require 'csv'
-require_relative 'api_service'
-require_relative 'retryable'
+
+require 'api_service'
+require 'retryable'
 
 module CircleciTools
   class UsageReportService
