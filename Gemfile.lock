@@ -1,0 +1,107 @@
+PATH
+  remote: .
+  specs:
+    circleci-tools (0.1.0)
+      aws-sdk-cloudwatch
+      aws-sdk-cloudwatchlogs
+      aws-sdk-s3
+      base64
+      csv
+      date
+      faraday
+      fileutils
+      json
+      logger
+      time
+      tty-progressbar
+      tty-prompt
+      zlib
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    aws-eventstream (1.3.0)
+    aws-partitions (1.1039.0)
+    aws-sdk-cloudwatch (1.109.0)
+      aws-sdk-core (~> 3, >= 3.216.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-cloudwatchlogs (1.106.0)
+      aws-sdk-core (~> 3, >= 3.216.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-core (3.216.0)
+      aws-eventstream (~> 1, >= 1.3.0)
+      aws-partitions (~> 1, >= 1.992.0)
+      aws-sigv4 (~> 1.9)
+      jmespath (~> 1, >= 1.6.1)
+    aws-sdk-kms (1.97.0)
+      aws-sdk-core (~> 3, >= 3.216.0)
+      aws-sigv4 (~> 1.5)
+    aws-sdk-s3 (1.178.0)
+      aws-sdk-core (~> 3, >= 3.216.0)
+      aws-sdk-kms (~> 1)
+      aws-sigv4 (~> 1.5)
+    aws-sigv4 (1.11.0)
+      aws-eventstream (~> 1, >= 1.0.2)
+    base64 (0.2.0)
+    csv (3.3.2)
+    date (3.4.1)
+    diff-lcs (1.5.1)
+    faraday (2.12.2)
+      faraday-net_http (>= 2.0, < 3.5)
+      json
+      logger
+    faraday-net_http (3.4.0)
+      net-http (>= 0.5.0)
+    fileutils (1.7.3)
+    jmespath (1.6.2)
+    json (2.9.1)
+    logger (1.6.5)
+    net-http (0.6.0)
+      uri
+    pastel (0.8.0)
+      tty-color (~> 0.5)
+    rspec (3.13.0)
+      rspec-core (~> 3.13.0)
+      rspec-expectations (~> 3.13.0)
+      rspec-mocks (~> 3.13.0)
+    rspec-core (3.13.2)
+      rspec-support (~> 3.13.0)
+    rspec-expectations (3.13.3)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-mocks (3.13.2)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.2)
+    strings-ansi (0.2.0)
+    time (0.4.1)
+      date
+    tty-color (0.6.0)
+    tty-cursor (0.7.1)
+    tty-progressbar (0.18.3)
+      strings-ansi (~> 0.2)
+      tty-cursor (~> 0.7)
+      tty-screen (~> 0.8)
+      unicode-display_width (>= 1.6, < 3.0)
+    tty-prompt (0.23.1)
+      pastel (~> 0.8)
+      tty-reader (~> 0.8)
+    tty-reader (0.9.0)
+      tty-cursor (~> 0.7)
+      tty-screen (~> 0.8)
+      wisper (~> 2.0)
+    tty-screen (0.8.2)
+    unicode-display_width (2.6.0)
+    uri (1.0.2)
+    wisper (2.0.1)
+    zlib (3.2.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  circleci-tools!
+  rspec (~> 3.10)
+
+BUNDLED WITH
+   2.5.23
