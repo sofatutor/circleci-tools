@@ -27,7 +27,6 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'csv'
   spec.add_runtime_dependency 'tty-prompt'
   spec.add_runtime_dependency 'date'
-  spec.add_runtime_dependency 'net/http'
   spec.add_runtime_dependency 'fileutils'
   spec.add_runtime_dependency 'zlib'
   spec.add_runtime_dependency 'aws-sdk-s3'
