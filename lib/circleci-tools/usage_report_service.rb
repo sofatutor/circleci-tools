@@ -51,11 +51,11 @@ module CircleciTools
     def fetch_and_store_usage_report(start_time:, end_time:)
       @logger.debug("Creating usage export job for CircleCI usage from #{start_time.iso8601} to #{end_time.iso8601}...")
       export_job = @api_service.create_usage_export_job(
-        org_id: @org_id,
-        start_time: start_time.iso8601,
-        end_time: end_time.iso8601,
-        shared_org_ids: @shared_org_ids
-      )
+                    org_id: @org_id,
+                    start_time: start_time.iso8601,
+                    end_time: end_time.iso8601,
+                    shared_org_ids: @shared_org_ids
+                  )
       return [false, []] unless export_job
       @logger.debug("Export job created with ID: #{export_job['usage_export_job_id']}")
 

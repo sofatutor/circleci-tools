@@ -20,6 +20,7 @@ module CircleciTools
     end
 
     def upload_metrics(file_path)
+      @logger.info("Uploading metrics from #{file_path} to CloudWatch...")
       events = parse_csv(file_path)
 
       if @dry_run
@@ -199,11 +200,16 @@ module CircleciTools
 
       if @s3_bucket
         old_digests = load_existing_digests
-        merged_digests = (old_digests + new_digests).to_a.uniq.join("\n")
-        @s3_client.put_object(bucket: @s3_bucket, key: "#{@namespace.downcase}/#{METRICS_DIGEST_FILENAME}", body: merged_digests)
+        merged_digests = (old_digests + new_digests).to_a.uniq
+        rotated_digests = merged_digests.last(100_000).join("\n")
+        @s3_client.put_object(bucket: @s3_bucket, key: "#{@namespace.downcase}/#{METRICS_DIGEST_FILENAME}", body: rotated_digests)
       else
-        File.open(File.join('tmp', METRICS_DIGEST_FILENAME), 'a') do |file|
-          new_digests.each { |digest| file.puts digest }
+        digest_file = File.join('tmp', METRICS_DIGEST_FILENAME)
+        old_digests = File.exist?(digest_file) ? File.readlines(digest_file).map(&:chomp) : []
+        merged_digests = (old_digests + new_digests).uniq
+        rotated_digests = merged_digests.last(100_000)
+        File.open(digest_file, 'w') do |file|
+          rotated_digests.each { |digest| file.puts digest }
         end
       end
     end

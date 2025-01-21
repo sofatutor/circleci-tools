@@ -137,9 +137,14 @@ module CircleciTools
     def create_usage_export_job(org_id:, start_time:, end_time:, shared_org_ids: [])
       url = "/api/v2/organizations/#{org_id}/usage_export_job"
       body = { start: start_time, end: end_time, shared_org_ids: shared_org_ids }
-      response = with_retries { connection.post(url, body.to_json, headers.merge('Content-Type' => 'application/json')) }
+      response = with_retries(max_retries: 60) do
+        response = connection.post(url, body.to_json, headers.merge('Content-Type' => 'application/json'))
+        raise "API Error: #{response&.body}" unless response&.status == 201
+
+        response
+      end
+
       return nil unless response
-      raise "API Error: #{response.body}" unless response.status == 201
 
       JSON.parse(response.body)
     end
