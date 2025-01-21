@@ -36,9 +36,9 @@ The CLI provides the following commands:
   bin/circleci-metrics upload --csv_file_path=CSV_FILE_PATH
   ```
 
-- **usage_report**: Create usage export job, download CSV, and print file references.
+- **usage_report**: Create usage export job, download CSV, and upload to cloudwatch metrics (CircleCI/<PROJECT_NAME>)/s3
   ```bash
-  bin/circleci-metrics usage_report --org_id=ORG_ID
+  bin/circleci-metrics usage_report --org_id=CIRCLECI_ORG_ID --days_ago=1 --upload --s3_bucket=CI_LOG_BUCKET
   ```
 
 - **upload_metrics**: Upload CloudWatch metrics from CSV file.
