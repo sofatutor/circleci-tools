@@ -2,23 +2,23 @@ PATH
   remote: .
   specs:
     circleci-tools (0.1.0)
-      activesupport
-      aws-sdk-cloudwatch
-      aws-sdk-cloudwatchlogs
-      aws-sdk-s3
-      base64
-      csv
-      date
-      faraday
-      fileutils
-      json
-      logger
-      rexml
-      thor
-      time
-      tty-progressbar
-      tty-prompt
-      zlib
+      activesupport (~> 8.0.1)
+      aws-sdk-cloudwatch (~> 1.109.0)
+      aws-sdk-cloudwatchlogs (~> 1.106.0)
+      aws-sdk-s3 (~> 1.178.0)
+      base64 (~> 0.2.0)
+      csv (~> 3.3.2)
+      date (~> 3.4.1)
+      faraday (~> 2.12.2)
+      fileutils (~> 1.7.3)
+      json (~> 2.9.1)
+      logger (~> 1.6.5)
+      rexml (~> 3.4.0)
+      thor (~> 1.3.2)
+      time (~> 0.4.1)
+      tty-progressbar (~> 0.18.3)
+      tty-prompt (~> 0.23.1)
+      zlib (~> 3.2.1)
 
 GEM
   remote: https://rubygems.org/
