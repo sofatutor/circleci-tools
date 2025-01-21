@@ -98,7 +98,7 @@ module CircleciMetrics
     method_option :s3_bucket, type: :string, desc: 'S3 bucket name for uploading the usage report'
     def usage_report
       prompt = TTY::Prompt.new
-      org_id = options[:org_id] || ENV.fetch('CIRCLECI_ORG_ID', '4f925b2b-47d2-4775-8200-af0e5e2d9806')
+      org_id = options[:org_id] || ENV.fetch('CIRCLE_ORGANIZATION_ID')
 
       shared_org_ids = options[:shared_org_ids] || []
       api_token = fetch_api_token(prompt) # ...call existing helper or use logic shown in evaluate method
@@ -153,7 +153,9 @@ module CircleciMetrics
 
       csv_files = downloaded_files.select { |file| file.end_with?('.csv') }
 
-      if csv_files.size == 1
+      if csv_files.size == 0
+        puts "No usage report available for the given time range."
+      elsif csv_files.size == 1
         puts "Usage report file downloaded: #{csv_files.first}"
       else
         puts "Usage report files downloaded:"
