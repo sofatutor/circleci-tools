@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'log_uploader'
 
-RSpec.describe Circleci::LogUploader do
+RSpec.describe CircleciTools::LogUploader do
   let(:uploader) { described_class.new('test_log_group') }
 
   describe '#upload_file' do

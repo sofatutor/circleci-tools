@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'usage_report_service'
 
-RSpec.describe Circleci::UsageReportService do
+RSpec.describe CircleciTools::UsageReportService do
   let(:service) { described_class.new(double('ApiService'), 'test_org_id', [], 600) }
 
   describe '#call' do

@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'cloudwatch_metrics_service'
 
-RSpec.describe Circleci::CloudWatchMetricsService do
+RSpec.describe CircleciTools::CloudWatchMetricsService do
   let(:service) { described_class.new(namespace: 'test_namespace') }
 
   describe '#upload_metrics' do
