@@ -142,4 +142,74 @@ RSpec.describe CircleciTools::ApiService do
       expect { subject.get_usage_export_job(org_id: org_id, usage_export_job_id: usage_export_job_id) }.to raise_error(StandardError, "API Error")
     end
   end
+
+  describe '#fetch_resource_usage' do
+    let(:job_id) { '12345' }
+    let(:api_token) { 'test_token' }
+    let(:org) { 'test_org' }
+    let(:project) { 'test_project' }
+    let(:logger) { instance_double(Logger, debug: nil, info: nil) }
+    let(:service) { described_class.new(api_token: api_token, org: org, project: project, logger: logger) }
+    
+    context 'on successful response' do
+      before do
+        http_client = instance_double(Net::HTTP)
+        http_response = instance_double(Net::HTTPResponse, code: '200', body: valid_resource_usage_json)
+        
+        allow(Net::HTTP).to receive(:start).and_yield(http_client)
+        allow(http_client).to receive(:request).and_return(http_response)
+      end
+      
+      let(:valid_resource_usage_json) {
+        JSON.generate([
+          {
+            'cpu' => [0.1, 0.2, 0.3],
+            'memory_bytes' => [100_000_000, 150_000_000, 200_000_000]
+          }
+        ])
+      }
+
+      it 'returns parsed resource usage data' do
+        result = service.fetch_resource_usage(job_id)
+        
+        expect(result).to be_an(Array)
+        expect(result[0]['cpu']).to eq([0.1, 0.2, 0.3])
+        expect(result[0]['memory_bytes']).to eq([100_000_000, 150_000_000, 200_000_000])
+      end
+    end
+    
+    context 'on error responses' do
+      [
+        { code: '401', error_class: StandardError, error_message: 'Unauthorized: Please check your API token' },
+        { code: '404', error_class: StandardError, error_message: 'Job not found: 12345' },
+        { code: '500', error_class: StandardError, error_message: 'API Error (500): Internal Server Error' }
+      ].each do |scenario|
+        it "raises an error for HTTP #{scenario[:code]} response" do
+          http_client = instance_double(Net::HTTP)
+          http_response = instance_double(Net::HTTPResponse, code: scenario[:code], body: 'Internal Server Error')
+          
+          allow(Net::HTTP).to receive(:start).and_yield(http_client)
+          allow(http_client).to receive(:request).and_return(http_response)
+          
+          expect { service.fetch_resource_usage(job_id) }.to raise_error(scenario[:error_class], scenario[:error_message])
+        end
+      end
+
+      it 'raises an error when JSON parsing fails' do
+        http_client = instance_double(Net::HTTP)
+        http_response = instance_double(Net::HTTPResponse, code: '200', body: 'This is not valid JSON')
+        
+        allow(Net::HTTP).to receive(:start).and_yield(http_client)
+        allow(http_client).to receive(:request).and_return(http_response)
+        
+        expect { service.fetch_resource_usage(job_id) }.to raise_error(StandardError, /Invalid JSON response/)
+      end
+      
+      it 'raises an error when the HTTP request fails' do
+        allow(Net::HTTP).to receive(:start).and_raise(StandardError.new('Connection timeout'))
+        
+        expect { service.fetch_resource_usage(job_id) }.to raise_error(StandardError, /Failed to fetch resource usage: Connection timeout/)
+      end
+    end
+  end
 end
