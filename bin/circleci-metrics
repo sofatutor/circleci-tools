@@ -17,6 +17,7 @@ require 'log_uploader'
 require 'usage_report_service'
 require 'cloudwatch_metrics_service'
 require 's3_upload_service'
+require 'resource_usage_aggregator'
 
 module CircleciMetrics
   class CLI < Thor
@@ -200,6 +201,84 @@ module CircleciMetrics
 
       metrics_service = CircleciTools::CloudWatchMetricsService.new(namespace: namespace, dry_run: dry_run)
       metrics_service.upload_metrics(csv_file_path)
+    end
+
+    desc "aggregate_usage", "Aggregate resource usage for jobs"
+    method_option :job_ids, aliases: '-j', type: :array, desc: 'List of Job IDs', required: true
+    method_option :verbose, aliases: '-v', type: :boolean, default: false, desc: 'Enable verbose output'
+    method_option :format, aliases: '-f', type: :string, enum: ['text', 'json'], default: 'text', desc: 'Output format (text or json)'
+    def aggregate_usage
+      job_ids = options[:job_ids]
+      api_token = fetch_api_token(TTY::Prompt.new)
+      logger = Logger.new(STDOUT)
+      logger.level = options[:verbose] ? Logger::DEBUG : Logger::INFO
+
+      circleci_service = CircleciTools::ApiService.new(api_token:, org: 'N/A', project: 'N/A', logger:)
+      aggregator = CircleciTools::ResourceUsageAggregator.new(logger:)
+
+      puts "Fetching usage data for #{job_ids.size} job#{'s' if job_ids.size > 1}..." unless options[:format] == 'json'
+      usage_data = []
+      failed_jobs = []
+
+      job_ids.each do |job_id|
+        begin
+          data = circleci_service.fetch_resource_usage(job_id)
+          usage_data << data
+          puts "Successfully fetched data for job #{job_id}" if options[:verbose]
+        rescue => e
+          failed_jobs << job_id
+          puts "Failed to fetch data for job #{job_id}: #{e.message}" if options[:verbose]
+        end
+      end
+
+      if usage_data.empty?
+        if options[:format] == 'json'
+          puts JSON.pretty_generate({ error: "No usage data could be fetched" })
+        else
+          puts "No usage data could be fetched."
+        end
+        return
+      end
+
+      if options[:verbose]
+        puts "\nFetched usage data:"
+        puts JSON.pretty_generate(usage_data)
+      end
+
+      result = aggregator.aggregate(usage_data)
+      
+      case options[:format]
+      when 'json'
+        json_output = {
+          jobs: {
+            total: job_ids.size,
+            processed: job_ids.size - failed_jobs.size,
+            failed: failed_jobs
+          },
+          tasks: result[:stats][:tasks_processed],
+          samples: result[:stats][:samples_processed],
+          metrics: {
+            cpu: {
+              min: result[:metrics][:cpu][:min].round(3),
+              max: result[:metrics][:cpu][:max].round(3),
+              avg: result[:metrics][:cpu][:avg].round(3)
+            },
+            memory: {
+              min: (result[:metrics][:memory_bytes][:min] / 1024.0 / 1024.0).round(2),
+              max: (result[:metrics][:memory_bytes][:max] / 1024.0 / 1024.0).round(2),
+              avg: (result[:metrics][:memory_bytes][:avg] / 1024.0 / 1024.0).round(2),
+              unit: 'MB'
+            }
+          }
+        }
+        puts JSON.pretty_generate(json_output)
+      else
+        puts aggregator.format_summary(result, jobs_total: job_ids.size, failed_jobs:)
+        if options[:verbose] && result
+          puts "\nRaw metrics:"
+          puts JSON.pretty_generate(result[:metrics])
+        end
+      end
     end
 
     no_commands do
