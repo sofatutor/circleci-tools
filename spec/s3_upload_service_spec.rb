@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 's3_upload_service'
 
-RSpec.describe Circleci::S3UploadService do
+RSpec.describe CircleciTools::S3UploadService do
   let(:service) { described_class.new('test_bucket') }
 
   describe '#upload_file' do

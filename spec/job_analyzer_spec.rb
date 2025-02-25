@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'job_analyzer'
 
-RSpec.describe Circleci::JobAnalyzer do
+RSpec.describe CircleciTools::JobAnalyzer do
   let(:analyzer) { described_class.new }
 
   describe '#calculate_peak_ram' do

@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'runner_calculator'
 
-RSpec.describe Circleci::RunnerCalculator do
+RSpec.describe CircleciTools::RunnerCalculator do
   let(:calculator) { described_class.new }
 
   describe '#calculate_runners' do

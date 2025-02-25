@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'data_aggregator'
 
-RSpec.describe Circleci::DataAggregator do
+RSpec.describe CircleciTools::DataAggregator do
   let(:aggregator) { described_class.new([]) } # Initialize with an empty array or mock data
 
   describe '#generate_csv' do
