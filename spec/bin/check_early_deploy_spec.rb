@@ -1,5 +1,3 @@
-require 'rails_helper'
-
 require_relative '../../bin/check_early_deploy'
 
 describe 'check_early_deploy' do
