@@ -2,7 +2,7 @@
 
 def check_early_deploy
   commit_message = `git log --format=%B -n 1 #{ENV['CIRCLE_SHA1']}`
-  revert_merge_regex = %r{Merge pull request #[0-9]+.*from #{ENV['CIRCLE_PROJECT_REPONAME']}/revert-(?![0-9]+-revert-)}
+  revert_merge_regex = %r{Merge pull request #[0-9]+.*from #{ENV['CIRCLE_PROJECT_USERNAME']}/revert-(?![0-9]+-revert-)}
   fast_track_regex = /\[ci-fast-track\]/
 
   if commit_message.match?(revert_merge_regex) || commit_message.match?(fast_track_regex)
