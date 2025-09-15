@@ -52,6 +52,51 @@ get_last_successful_commit() {
   return 1
 }
 
+# Ensure both BASE_COMMIT and CIRCLE_SHA1 exist locally. Handle force-pushes gracefully.
+ensure_commit_available() {
+  local commit_sha="$1"
+  local branch="$2"
+  if git cat-file -e "${commit_sha}^{commit}" 2>/dev/null; then
+    return 0
+  fi
+  # Attempt to deepen history for the branch to fetch the missing commit
+  echo "[INFO] Commit ${commit_sha} not found locally. Deepening history for ${branch}..."
+  git fetch origin "${branch}" --deepen=1000 2>/dev/null || true
+  git cat-file -e "${commit_sha}^{commit}" 2>/dev/null
+}
+
+# Ensure gh CLI is available (install if missing)
+ensure_gh_cli_available() {
+  if command -v gh &> /dev/null; then
+    return 0
+  fi
+  # Try common install locations before installing
+  if [[ -x "/usr/bin/gh" ]]; then
+    if ! echo "$PATH" | grep -q ':/usr/bin\|^/usr/bin:'; then
+      echo '[WARN] gh CLI not found in PATH, adding /usr/bin to PATH'
+      export PATH="/usr/bin:$PATH"
+    fi
+    return 0
+  fi
+  if [[ -x "/usr/local/bin/gh" ]]; then
+    if ! echo "$PATH" | grep -q ':/usr/local/bin\|^/usr/local/bin:'; then
+      echo '[WARN] gh CLI not found in PATH, adding /usr/local/bin to PATH'
+      export PATH="/usr/local/bin:$PATH"
+    fi
+    return 0
+  fi
+
+  echo '[INFO] gh CLI not found. Installing...'
+  if command -v apt-get &> /dev/null; then
+    sudo apt-get update && sudo apt-get install -y gh
+  elif command -v yum &> /dev/null; then
+    sudo yum install -y gh
+  else
+    echo '[ERROR] Could not install gh CLI. Please ensure it is available.'
+    exit 1
+  fi
+}
+
 # Main logic
 if [[ ! -d .git ]]; then
   echo "[ERROR] .git directory not found. Exiting."
@@ -71,19 +116,6 @@ if [[ -z "$BASE_COMMIT" ]]; then
     exit 1
   }
 fi
-
-# Ensure both BASE_COMMIT and CIRCLE_SHA1 exist locally. Handle force-pushes gracefully.
-ensure_commit_available() {
-  local commit_sha="$1"
-  local branch="$2"
-  if git cat-file -e "${commit_sha}^{commit}" 2>/dev/null; then
-    return 0
-  fi
-  # Attempt to deepen history for the branch to fetch the missing commit
-  echo "[INFO] Commit ${commit_sha} not found locally. Deepening history for ${branch}..."
-  git fetch origin "${branch}" --deepen=1000 2>/dev/null || true
-  git cat-file -e "${commit_sha}^{commit}" 2>/dev/null
-}
 
 FALLBACK_TO_CURRENT_COMMIT=0
 
@@ -149,18 +181,7 @@ if [[ -n "$CI_SKIP_PATHS" ]]; then
 fi
 
 # --- PR approval check using gh CLI ---
-# Install gh CLI if not present
-if ! command -v gh &> /dev/null; then
-  echo '[INFO] gh CLI not found. Installing...'
-  if command -v apt-get &> /dev/null; then
-    sudo apt-get update && sudo apt-get install -y gh
-  elif command -v yum &> /dev/null; then
-    sudo yum install -y gh
-  else
-    echo '[ERROR] Could not install gh CLI. Please ensure it is available.'
-    exit 1
-  fi
-fi
+ensure_gh_cli_available
 
 # Export GITHUB_TOKEN for gh CLI
 if [[ -n "$GITHUB_BOT_TOKEN" ]]; then
