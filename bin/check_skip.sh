@@ -86,6 +86,12 @@ ensure_gh_cli_available() {
     return 0
   fi
 
+  # Allow opting out of installing gh during CI
+  if [[ "$CI_SKIP_GH_INSTALL" == "1" || "$CI_SKIP_GH_INSTALL" == "true" ]]; then
+    echo '[INFO] CI_SKIP_GH_INSTALL set; skipping gh installation.'
+    return 0
+  fi
+
   echo '[INFO] gh CLI not found. Installing...'
   if command -v apt-get &> /dev/null; then
     sudo apt-get update && sudo apt-get install -y gh
@@ -149,9 +155,18 @@ fi
 echo "Change set ($BASE_COMMIT to $CIRCLE_SHA1):"
 echo "$CHANGED_FILES"
 
-# Handle CI_SKIP_PATHS
-if [[ -n "$CI_SKIP_PATHS" ]]; then
+# Handle CI_SKIP_PATHS or CI_SKIP_FILE
+SKIP_PATHS=()
+if [[ -n "$CI_SKIP_FILE" && -f "$CI_SKIP_FILE" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+    SKIP_PATHS+=("$line")
+  done < "$CI_SKIP_FILE"
+elif [[ -n "$CI_SKIP_PATHS" ]]; then
   IFS=',' read -ra SKIP_PATHS <<< "$CI_SKIP_PATHS"
+fi
+
+if [[ ${#SKIP_PATHS[@]} -gt 0 ]]; then
   all_skipped=true
   for file in $CHANGED_FILES; do
     skipped=false
@@ -167,7 +182,11 @@ if [[ -n "$CI_SKIP_PATHS" ]]; then
     fi
   done
   if [[ $all_skipped == true ]]; then
-    echo "All changes are within CI_SKIP_PATHS ($CI_SKIP_PATHS). Cancelling workflow."
+    if [[ -n "$CI_SKIP_FILE" ]]; then
+      echo "All changes are within CI_SKIP_FILE ($CI_SKIP_FILE). Cancelling workflow."
+    else
+      echo "All changes are within CI_SKIP_PATHS ($CI_SKIP_PATHS). Cancelling workflow."
+    fi
     if [[ -z "$CIRCLE_CI_API_TOKEN" || -z "$CIRCLE_WORKFLOW_ID" ]]; then
       echo "CIRCLE_CI_API_TOKEN or CIRCLE_WORKFLOW_ID not set. Cannot cancel workflow. Exiting with code 0."
       exit 0
