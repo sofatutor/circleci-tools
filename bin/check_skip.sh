@@ -103,6 +103,60 @@ ensure_gh_cli_available() {
   fi
 }
 
+# Parse skip rules from file lines, comma/newline/whitespace-separated values,
+# and JSON arrays (e.g. ["docs",".github"]).
+append_skip_paths_from_value() {
+  local value="$1"
+  local candidate
+
+  if [[ -z "$value" ]]; then
+    return 0
+  fi
+
+  if [[ "$value" =~ ^[[:space:]]*\[.*\][[:space:]]*$ ]] && command -v jq &> /dev/null; then
+    while IFS= read -r candidate || [[ -n "$candidate" ]]; do
+      [[ -z "$candidate" || "$candidate" =~ ^[[:space:]]*# ]] && continue
+      SKIP_PATHS+=("$candidate")
+    done < <(echo "$value" | jq -r '.[]?')
+    return 0
+  fi
+
+  if [[ "$value" == *,* ]]; then
+    while IFS= read -r candidate || [[ -n "$candidate" ]]; do
+      candidate="${candidate#"${candidate%%[![:space:]]*}"}"
+      candidate="${candidate%"${candidate##*[![:space:]]}"}"
+      [[ -z "$candidate" || "$candidate" =~ ^[[:space:]]*# ]] && continue
+      SKIP_PATHS+=("$candidate")
+    done < <(echo "$value" | tr ',' '\n')
+    return 0
+  fi
+
+  while IFS= read -r candidate || [[ -n "$candidate" ]]; do
+    while IFS= read -r token; do
+      [[ -z "$token" || "$token" =~ ^[[:space:]]*# ]] && continue
+      SKIP_PATHS+=("$token")
+    done < <(echo "$candidate" | xargs -n1)
+  done < <(echo "$value")
+}
+
+path_matches_rule() {
+  local file="$1"
+  local rule="$2"
+  local normalized_file="${file#./}"
+  local normalized_rule="${rule#./}"
+  local dir_rule
+
+  # Treat glob-like patterns as shell patterns.
+  if [[ "$normalized_rule" == *'*'* || "$normalized_rule" == *'?'* || "$normalized_rule" == *'['* ]]; then
+    [[ "$normalized_file" == $normalized_rule ]]
+    return $?
+  fi
+
+  # Boundary-safe directory or exact file match.
+  dir_rule="${normalized_rule%/}"
+  [[ "$normalized_file" == "$dir_rule" || "$normalized_file" == "$dir_rule/"* ]]
+}
+
 # Main logic
 if [[ ! -d .git ]]; then
   echo "[ERROR] .git directory not found. Exiting."
@@ -155,15 +209,16 @@ fi
 echo "Change set ($BASE_COMMIT to $CIRCLE_SHA1):"
 echo "$CHANGED_FILES"
 
-# Handle CI_SKIP_PATHS or CI_SKIP_FILE
+# Handle CI_SKIP_FILE and/or CI_SKIP_PATHS
 SKIP_PATHS=()
 if [[ -n "$CI_SKIP_FILE" && -f "$CI_SKIP_FILE" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
     SKIP_PATHS+=("$line")
   done < "$CI_SKIP_FILE"
-elif [[ -n "$CI_SKIP_PATHS" ]]; then
-  IFS=',' read -ra SKIP_PATHS <<< "$CI_SKIP_PATHS"
+fi
+if [[ -n "$CI_SKIP_PATHS" ]]; then
+  append_skip_paths_from_value "$CI_SKIP_PATHS"
 fi
 
 if [[ ${#SKIP_PATHS[@]} -gt 0 ]]; then
@@ -171,7 +226,7 @@ if [[ ${#SKIP_PATHS[@]} -gt 0 ]]; then
   for file in $CHANGED_FILES; do
     skipped=false
     for path in "${SKIP_PATHS[@]}"; do
-      if [[ $file == $path* ]]; then
+      if path_matches_rule "$file" "$path"; then
         skipped=true
         break
       fi
