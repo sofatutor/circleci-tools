@@ -27,7 +27,7 @@ module CircleciTools
       def short_label_for(days:, week:, year: Time.now.utc.year)
         return days_label_for(days) unless week
 
-        "CW #{'%02d' % week}/#{year}"
+        "CW #{format('%02d', week)}/#{year}"
       end
 
       def valid_week?(week, year: Time.now.utc.year)

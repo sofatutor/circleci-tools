@@ -11,8 +11,7 @@ module CircleciTools
     }.freeze
 
     class Run
-      attr_writer :rerun_parent_workflow
-      attr_reader :rerun_parent_workflow
+      attr_accessor :rerun_parent_workflow
 
       def initialize(attributes)
         @attributes = attributes.dup
@@ -59,7 +58,9 @@ module CircleciTools
       end
 
       def rerun?
-        @attributes['rerun'] || @attributes['auto_rerun_number'].to_i.positive? || @attributes['tag'].to_s.include?('rerun')
+        @attributes['rerun'] ||
+          @attributes['auto_rerun_number'].to_i.positive? ||
+          @attributes['tag'].to_s.include?('rerun')
       end
 
       def rerun=(value)
@@ -214,7 +215,7 @@ module CircleciTools
 
       def format_duration(seconds)
         total_seconds = seconds.to_i
-        '%d:%02d' % [total_seconds / 60, total_seconds % 60]
+        format('%<min>d:%<sec>02d', min: total_seconds / 60, sec: total_seconds % 60)
       end
     end
   end

@@ -23,7 +23,7 @@ module CircleciTools
       end
 
       def render_workflow(workflow)
-        status_text = ("%-#{STATUS_WIDTH}s" % workflow.status.upcase)
+        status_text = format("%-#{STATUS_WIDTH}s", workflow.status.upcase)
         message = "#{tree_prefix_for(workflow)}#{colorize(status_text, color_for(workflow.status))}"
 
         message << " #{format_time(workflow.display_time)}" if workflow.display_time
@@ -67,8 +67,6 @@ module CircleciTools
       end
 
       private
-
-      PREFIX = BASE_TREE_PREFIX
 
       def tree_prefix_for(workflow)
         return orphan_rerun_prefix_for(workflow) if workflow.rerun? && !workflow.rerun_parent_workflow
@@ -190,7 +188,9 @@ module CircleciTools
         stage_indexes[job_id] = if dependencies.empty?
                                   0
                                 else
-                                  dependencies.map { |dep_id| job_stage_index_for(dep_id, workflow, jobs_by_id, stage_indexes) }.max + 1
+                                  dependencies.map do |dep_id|
+                                    job_stage_index_for(dep_id, workflow, jobs_by_id, stage_indexes)
+                                  end.max + 1
                                 end
       end
 
@@ -256,7 +256,10 @@ module CircleciTools
           next unless total_duration
 
           duration_summary = summary_duration_summary_for(job_duration_workflows, type, blueprint_workflows:)
-          PREFIX + summary_message_for(label, format_duration(total_duration), duration_summary, type:, numeric_value: total_duration)
+          BASE_TREE_PREFIX + summary_message_for(
+            label, format_duration(total_duration), duration_summary,
+            type:, numeric_value: total_duration
+          )
         end
       end
 
@@ -278,7 +281,8 @@ module CircleciTools
         end
       end
 
-      def split_summary_message_for(label, total_duration_workflows, job_duration_workflows, blueprint_workflows:, type:)
+      def split_summary_message_for(label, total_duration_workflows, job_duration_workflows, blueprint_workflows:,
+                                    type:)
         total_duration = summary_metric_for(total_duration_workflows.filter_map(&:displayed_total_duration), type)
         return unless total_duration
 
@@ -286,7 +290,10 @@ module CircleciTools
         duration_summary = summary_duration_summary_for(
           job_duration_workflows, type, blueprint_workflows:, job_statuses:
         )
-        PREFIX + summary_message_for(label, format_duration(total_duration), duration_summary, type:, numeric_value: total_duration)
+        BASE_TREE_PREFIX + summary_message_for(
+          label, format_duration(total_duration), duration_summary,
+          type:, numeric_value: total_duration
+        )
       end
 
       def cost_summary_message_for(workflows, successful_workflows, blueprint_workflows)
@@ -296,14 +303,15 @@ module CircleciTools
         cost_credits_by_name = job_cost_credits_by_name_for(workflow)
         return if cost_credits_by_name.empty?
 
-        PREFIX + summary_message_for(
+        BASE_TREE_PREFIX + summary_message_for(
           'Costs (credits, est.)',
           format_kilo_credits(cost_credits_by_name.values.sum),
           cost_summary_for(blueprint_workflows, cost_credits_by_name)
         )
       end
 
-      def success_rate_summary_messages_for(success_rate_workflows, first_attempt_workflows, blueprint_workflows, prepend_spacing: false)
+      def success_rate_summary_messages_for(success_rate_workflows, first_attempt_workflows, blueprint_workflows,
+                                            prepend_spacing: false)
         overall_rate = percentage_for(
           success_rate_workflows.count { |w| w.status == 'success' }, success_rate_workflows.size
         )
@@ -317,12 +325,14 @@ module CircleciTools
 
         if overall_rate
           label = "Success Rate (#{@range_label})"
-          messages << (PREFIX + summary_message_for(label, overall_rate, summary_success_rate_summary_for(success_rate_workflows, blueprint_workflows:)))
+          rate_summary = summary_success_rate_summary_for(success_rate_workflows, blueprint_workflows:)
+          messages << (BASE_TREE_PREFIX + summary_message_for(label, overall_rate, rate_summary))
         end
 
         if overall_one_shot
           label = "One-Shot Rate (#{@range_label})"
-          messages << (PREFIX + summary_message_for(label, overall_one_shot, summary_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)))
+          rate_summary = summary_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
+          messages << (BASE_TREE_PREFIX + summary_message_for(label, overall_one_shot, rate_summary))
         end
 
         messages
@@ -380,7 +390,9 @@ module CircleciTools
       end
 
       def summary_success_rates_by_name_for(workflows)
-        workflows.each_with_object(Hash.new { |h, k| h[k] = { success_count: 0, total_count: 0 } }) do |workflow, result|
+        workflows.each_with_object(Hash.new do |h, k|
+          h[k] = { success_count: 0, total_count: 0 }
+        end) do |workflow, result|
           workflow.jobs.each do |job|
             next if job['status'] == 'not_run'
 
@@ -404,7 +416,9 @@ module CircleciTools
             { formatted_duration: formatted_rate || 'n/a', name: job_name, numeric_duration: nil, status: nil }
           end
 
-          formatted = entries.map { |entry| formatted_stage_entry(entry, nil, highlight_longest: false, worst_percentage: worst_rate) }
+          formatted = entries.map do |entry|
+            formatted_stage_entry(entry, nil, highlight_longest: false, worst_percentage: worst_rate)
+          end
           "[#{formatted.join('; ')}]"
         end.join(' -> ')
       end
@@ -427,7 +441,9 @@ module CircleciTools
         if worst_percentage && percentage_value_for(entry[:formatted_duration]) == worst_percentage
           padded = colorize(padded, :bold)
         end
-        if highlight_longest && longest_duration && entry[:formatted_duration].match?(/\A\d+:\d{2}\z/) && entry[:numeric_duration] == longest_duration
+        if highlight_longest && longest_duration &&
+           entry[:formatted_duration].match?(/\A\d+:\d{2}\z/) &&
+           entry[:numeric_duration] == longest_duration
           padded = colorize(padded, :bold)
         end
 
@@ -506,7 +522,7 @@ module CircleciTools
 
       def format_duration(seconds)
         total_seconds = seconds.to_i
-        '%d:%02d' % [total_seconds / 60, total_seconds % 60]
+        format('%<min>d:%<sec>02d', min: total_seconds / 60, sec: total_seconds % 60)
       end
     end
   end

@@ -68,7 +68,10 @@ module CircleciTools
                           end
         end
 
-        abort "Please provide a workflow name for project #{colorize(project_name, :yellow)}." if workflow_name.to_s.empty?
+        if workflow_name.to_s.empty?
+          abort "Please provide a workflow name for project #{colorize(project_name,
+                                                                       :yellow)}."
+        end
 
         { project: project_name, **options.merge(workflow: workflow_name) }
       end
@@ -108,9 +111,7 @@ module CircleciTools
           show_branch: request.fetch(:show_branch)
         )
 
-        if request.fetch(:verbose)
-          workflows.each { |workflow| puts formatter.render_workflow(workflow) }
-        end
+        workflows.each { |workflow| puts formatter.render_workflow(workflow) } if request.fetch(:verbose)
 
         summary_messages = formatter.summary_messages(workflows)
         return if summary_messages.empty?
@@ -152,7 +153,7 @@ module CircleciTools
         rounded_tenths = (load_duration * 10).round
         formatted_runs = colorize(run_count.to_s, :yellow)
         formatted_jobs = colorize(job_count.to_s, :yellow)
-        formatted_duration = colorize('%.1f' % (rounded_tenths / 10.0), :yellow)
+        formatted_duration = colorize(format('%.1f', rounded_tenths / 10.0), :yellow)
 
         "Loaded #{formatted_runs} #{run_count == 1 ? 'run' : 'runs'} and " \
           "#{formatted_jobs} #{job_count == 1 ? 'job' : 'jobs'} in " \
@@ -166,30 +167,40 @@ module CircleciTools
       def build_option_parser(options)
         OptionParser.new do |parser|
           parser.banner = "Usage: #{$PROGRAM_NAME} project [options]"
-          parser.on('-d', '--days DAYS', Integer, "Load workflows from the last N days (default: #{DEFAULT_DAYS})") { |v| options[:days] = v }
-          parser.on('-W', '--week WEEK', Integer, 'Load workflows from ISO calendar week N of the current year (overrides --days)') do |v|
-            raise OptionParser::InvalidArgument, TimeWindow.invalid_week_message(v) unless TimeWindow.valid_week?(v)
-
-            options[:week] = v
-          end
-          parser.on('-o', '--org ORG', String, "CircleCI organization/user (default: #{DEFAULT_ORG})") { |v| options[:org] = v }
-          parser.on('-b', '--branch BRANCH', String, "Branch to filter (default: #{DEFAULT_BRANCH})") { |v| options[:branch] = v }
-          parser.on('-a', '--all', "Don't filter by branch (overrides --branch)") { options[:branch] = nil }
-          parser.on('-w', '--workflow WORKFLOW', String, 'Workflow name (inferred for some projects on main or all branches)') { |v| options[:workflow] = v }
-          parser.on('-l', '--links', 'Append CircleCI links to run rows (implies --verbose)') do
-            options[:links] = true
-            options[:verbose] = true
-          end
-          parser.on('-B', '--show-branch', 'Append the branch name to run rows (implies --verbose)') do
-            options[:show_branch] = true
-            options[:verbose] = true
-          end
-          parser.on('-v', '--verbose', 'Print the list of runs before aggregates') { options[:verbose] = true }
-          parser.on('-h', '--help', 'Show help') do
-            puts parser
-            exit
-          end
+          define_filter_options(parser, options)
+          define_output_options(parser, options)
+          parser.on('-h', '--help', 'Show help') { puts parser; exit } # rubocop:disable Style/Semicolon
         end
+      end
+
+      def define_filter_options(parser, options)
+        parser.on('-d', '--days DAYS', Integer,
+                  "Load workflows from the last N days (default: #{DEFAULT_DAYS})") { |v| options[:days] = v }
+        parser.on('-W', '--week WEEK', Integer,
+                  'Load workflows from ISO calendar week N of the current year (overrides --days)') do |v|
+          raise OptionParser::InvalidArgument, TimeWindow.invalid_week_message(v) unless TimeWindow.valid_week?(v)
+
+          options[:week] = v
+        end
+        parser.on('-o', '--org ORG', String,
+                  "CircleCI organization/user (default: #{DEFAULT_ORG})") { |v| options[:org] = v }
+        parser.on('-b', '--branch BRANCH', String,
+                  "Branch to filter (default: #{DEFAULT_BRANCH})") { |v| options[:branch] = v }
+        parser.on('-a', '--all', "Don't filter by branch (overrides --branch)") { options[:branch] = nil }
+        parser.on('-w', '--workflow WORKFLOW', String,
+                  'Workflow name (inferred for some projects on main or all branches)') { |v| options[:workflow] = v }
+      end
+
+      def define_output_options(parser, options)
+        parser.on('-l', '--links', 'Append CircleCI links to run rows (implies --verbose)') do
+          options[:links] = true
+          options[:verbose] = true
+        end
+        parser.on('-B', '--show-branch', 'Append the branch name to run rows (implies --verbose)') do
+          options[:show_branch] = true
+          options[:verbose] = true
+        end
+        parser.on('-v', '--verbose', 'Print the list of runs before aggregates') { options[:verbose] = true }
       end
 
       def parse_cli
@@ -199,7 +210,9 @@ module CircleciTools
 
         parser.permute!(arguments)
         abort "Unexpected arguments: #{arguments.drop(1).join(' ')}" if arguments.size > 1
-        abort "Please provide a project (like \"main\" or \"kids\").\n\n#{usage}" if arguments.empty? || arguments.first.to_s.strip.empty?
+        if arguments.empty? || arguments.first.to_s.strip.empty?
+          abort "Please provide a project (like \"main\" or \"kids\").\n\n#{usage}"
+        end
 
         [options, arguments.first.to_s.strip]
       rescue OptionParser::ParseError => e
@@ -245,8 +258,11 @@ module CircleciTools
           end
         end
 
-        configuration_example = { host: DEFAULT_HOST, token: '[paste your CircleCI token here]' }.to_yaml
-        abort("Please configure a CircleCI token in #{CONFIG_FILE}:\n\n#{configuration_example}\n…or run the circleci setup command to create it.")
+        example = { host: DEFAULT_HOST, token: '[paste your CircleCI token here]' }.to_yaml
+        abort(
+          "Please configure a CircleCI token in #{CONFIG_FILE}:" \
+          "\n\n#{example}\n…or run the circleci setup command to create it."
+        )
       end
 
       def colorize(text, color)

@@ -26,36 +26,7 @@ module CircleciTools
       end
 
       def workflow_items(org:, project:, workflow_name:, branch:, limit:)
-        workflows = []
-        page_token = nil
-        escaped_workflow_name = CGI.escape(workflow_name)
-
-        loop do
-          query = {}
-          query['page-token'] = page_token if page_token
-
-          if branch
-            query['branch'] = branch
-          else
-            query['all-branches'] = true
-          end
-
-          response = request_json(
-            :get,
-            "insights/#{escaped_project_slug(org, project)}/workflows/#{escaped_workflow_name}",
-            query:
-          )
-          items = response.fetch('items', [])
-          break if items.empty?
-
-          batch_size = limit - workflows.size
-          workflows.concat(items.first(batch_size))
-
-          break if workflows.size >= limit
-
-          page_token = response['next_page_token']
-          break if page_token.to_s.empty?
-        end
+        workflows = paginate_workflow_insights(org, project, workflow_name, branch, limit)
 
         workflows
           .sort_by { |workflow| parse_time(workflow['created_at']) || Time.at(0).utc }
@@ -89,6 +60,33 @@ module CircleciTools
       end
 
       private
+
+      def paginate_workflow_insights(org, project, workflow_name, branch, limit)
+        workflows = []
+        page_token = nil
+        path = "insights/#{escaped_project_slug(org, project)}/workflows/#{CGI.escape(workflow_name)}"
+
+        loop do
+          query = branch_query(branch)
+          query['page-token'] = page_token if page_token
+
+          response = request_json(:get, path, query:)
+          items = response.fetch('items', [])
+          break if items.empty?
+
+          workflows.concat(items.first(limit - workflows.size))
+          break if workflows.size >= limit
+
+          page_token = response['next_page_token']
+          break if page_token.to_s.empty?
+        end
+
+        workflows
+      end
+
+      def branch_query(branch)
+        branch ? { 'branch' => branch } : { 'all-branches' => true }
+      end
 
       def escaped_project_slug(org, project)
         ['gh', org, project].map { |segment| CGI.escape(segment) }.join('/')
