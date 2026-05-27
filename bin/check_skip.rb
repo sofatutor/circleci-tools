@@ -66,7 +66,7 @@ module CheckSkip
     http = Net::HTTP.new(uri.host, uri.port)
     http.use_ssl = true
     req = Net::HTTP::Get.new(uri.request_uri)
-    req['Circle-Token'] = token if !token.nil? || (!token.empty? && uri.host == CIRCLE_API_HOST)
+    req['Circle-Token'] = token if token && !token.empty? && uri.host == CIRCLE_API_HOST
     headers.each { |k, v| req[k] = v }
     res = http.request(req)
     unless res.is_a?(Net::HTTPSuccess)
@@ -246,7 +246,7 @@ module CheckSkip
       puts '[INFO] No previous successful commit found. Resolving fallback base commit.'
 
       pr_base_branch = parse_pr_base_branch
-      if pr_base_branch.present?
+      if pr_base_branch && !pr_base_branch.empty?
         puts "[INFO] Using merge-base against PR base branch '#{pr_base_branch}'."
         system('git', 'fetch', 'origin', pr_base_branch, '--deepen=100',
                out: File::NULL, err: File::NULL) ||
