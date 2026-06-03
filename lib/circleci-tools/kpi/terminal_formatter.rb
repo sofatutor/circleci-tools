@@ -47,8 +47,7 @@ module CircleciTools
         blueprint_workflows = workflows
         successful_workflows = workflows.select { |w| w.status == 'success' }
         failed_workflows = workflows.select { |w| w.status == 'failed' }
-        success_rate_workflows = workflows.reject { |w| w.status == 'canceled' }
-        first_attempt_workflows = success_rate_workflows.reject(&:rerun?)
+        first_attempt_workflows = workflows.reject { |w| w.status == 'canceled' || w.rerun? }
 
         messages = []
         messages.concat(duration_summary_messages_for(successful_workflows, workflows, blueprint_workflows))
@@ -58,7 +57,7 @@ module CircleciTools
         messages << cost_message if cost_message
         messages.concat(
           success_rate_summary_messages_for(
-            success_rate_workflows, first_attempt_workflows, blueprint_workflows,
+            first_attempt_workflows, blueprint_workflows,
             prepend_spacing: messages.any?
           )
         )
@@ -310,10 +309,10 @@ module CircleciTools
         )
       end
 
-      def success_rate_summary_messages_for(success_rate_workflows, first_attempt_workflows, blueprint_workflows,
+      def success_rate_summary_messages_for(first_attempt_workflows, blueprint_workflows,
                                             prepend_spacing: false)
         overall_rate = percentage_for(
-          success_rate_workflows.count { |w| w.status == 'success' }, success_rate_workflows.size
+          first_attempt_workflows.count(&:eventually_succeeded?), first_attempt_workflows.size
         )
         overall_one_shot = percentage_for(
           first_attempt_workflows.count { |w| w.status == 'success' }, first_attempt_workflows.size
@@ -325,7 +324,7 @@ module CircleciTools
 
         if overall_rate
           label = "Success Rate (#{@range_label})"
-          rate_summary = summary_success_rate_summary_for(success_rate_workflows, blueprint_workflows:)
+          rate_summary = eventual_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
           messages << (BASE_TREE_PREFIX + summary_message_for(label, overall_rate, rate_summary))
         end
 
@@ -403,8 +402,29 @@ module CircleciTools
         end
       end
 
+      def eventual_success_rates_by_name_for(first_attempt_workflows)
+        first_attempt_workflows.each_with_object(Hash.new do |h, k|
+          h[k] = { success_count: 0, total_count: 0 }
+        end) do |workflow, result|
+          workflow.eventual_job_outcomes.each do |name, outcome|
+            entry = result[name]
+            entry[:total_count] += 1
+            entry[:success_count] += 1 if outcome[:succeeded]
+          end
+        end
+      end
+
+      def eventual_success_rate_summary_for(first_attempt_workflows, blueprint_workflows: first_attempt_workflows)
+        rates_by_name = eventual_success_rates_by_name_for(first_attempt_workflows)
+        summary_for_rates(rates_by_name, blueprint_workflows)
+      end
+
       def summary_success_rate_summary_for(workflows, blueprint_workflows: workflows)
         rates_by_name = summary_success_rates_by_name_for(workflows)
+        summary_for_rates(rates_by_name, blueprint_workflows)
+      end
+
+      def summary_for_rates(rates_by_name, blueprint_workflows)
         worst_rate = rates_by_name.values.filter_map do |rates|
           percentage_value_for(percentage_for(rates[:success_count], rates[:total_count]))
         end.min
