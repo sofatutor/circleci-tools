@@ -46,6 +46,34 @@ The CLI provides the following commands:
   bin/circleci-metrics upload_metrics --csv_file_path=CSV_FILE_PATH
   ```
 
+### KPI Analysis (`bin/circleci-kpis`)
+
+Calculate CircleCI KPIs (P95 run time, success rate, cost estimates) for a project. Fetches hundreds of runs and thousands of jobs in parallel and reports aggregate metrics.
+
+Authorize by setting `CIRCLECI_TOKEN` (or `CIRCLE_CI_API_TOKEN` / `CIRCLE_TOKEN`) or by running `circleci setup` (`brew install circleci`) which writes `~/.circleci/cli.yml`.
+
+```
+Usage: bin/circleci-kpis project [options]
+    -d, --days DAYS                  Load workflows from the last N days (default: 7)
+    -W, --week WEEK                  Load workflows from ISO calendar week N of the current year (overrides --days)
+    -o, --org ORG                    CircleCI organization/user (default: sofatutor)
+    -b, --branch BRANCH              Branch to filter (default: main)
+    -a, --all                        Don't filter by branch (overrides --branch)
+    -w, --workflow WORKFLOW          Workflow name (inferred for some projects on main or all branches)
+    -l, --links                      Append CircleCI links to run rows (implies --verbose)
+    -B, --show-branch                Append the branch name to run rows (implies --verbose)
+    -v, --verbose                    Print the list of runs before aggregates
+    -h, --help                       Show help
+```
+
+Examples:
+
+```bash
+bin/circleci-kpis main -vd3           # sofatutor, last 3 days, verbose
+bin/circleci-kpis kids --week 22      # sofatutor-kids, calendar week 22
+bin/circleci-kpis SPASS --days 14     # SPASS project, last 14 days
+```
+
 ## Contributing
 
 We welcome contributions to enhance the functionality of CircleCI Tools. Please follow these steps to contribute:
