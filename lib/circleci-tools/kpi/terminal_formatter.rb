@@ -311,17 +311,32 @@ module CircleciTools
 
       def success_rate_summary_messages_for(first_attempt_workflows, blueprint_workflows,
                                             prepend_spacing: false)
+        eventual_success_count, one_shot_success_count = success_counts_for(first_attempt_workflows)
         overall_rate = percentage_for(
-          first_attempt_workflows.count(&:eventually_succeeded?), first_attempt_workflows.size
+          eventual_success_count, first_attempt_workflows.size
         )
         overall_one_shot = percentage_for(
-          first_attempt_workflows.count { |w| w.status == 'success' }, first_attempt_workflows.size
+          one_shot_success_count, first_attempt_workflows.size
         )
-        return [] unless overall_rate || overall_one_shot
+        probably_flaky_rate = percentage_for(
+          eventual_success_count - one_shot_success_count, first_attempt_workflows.size
+        )
+        return [] unless overall_rate || overall_one_shot || probably_flaky_rate
 
         messages = []
         messages << '' if prepend_spacing
+        messages.concat(
+          formatted_success_rate_summary_messages_for(
+            overall_rate, overall_one_shot, probably_flaky_rate, first_attempt_workflows, blueprint_workflows
+          )
+        )
 
+        messages
+      end
+
+      def formatted_success_rate_summary_messages_for(overall_rate, overall_one_shot, probably_flaky_rate,
+                                                      first_attempt_workflows, blueprint_workflows)
+        messages = []
         if overall_rate
           label = "Success Rate (#{@range_label})"
           rate_summary = eventual_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
@@ -334,7 +349,19 @@ module CircleciTools
           messages << (BASE_TREE_PREFIX + summary_message_for(label, overall_one_shot, rate_summary))
         end
 
+        if probably_flaky_rate
+          label = "Probably Flaky Rate (#{@range_label})"
+          messages << (BASE_TREE_PREFIX + summary_message_for(label, probably_flaky_rate, ''))
+        end
+
         messages
+      end
+
+      def success_counts_for(workflows)
+        [
+          workflows.count(&:eventually_succeeded?),
+          workflows.count { |w| w.status == 'success' }
+        ]
       end
 
       def aggregate_cost_workflow_for(workflows, successful_workflows)
