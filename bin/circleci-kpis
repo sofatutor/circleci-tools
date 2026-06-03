@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/circleci-tools/kpi'
+
+CircleciTools::Kpi::CLI.new(ARGV).run

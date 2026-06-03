@@ -1,0 +1,39 @@
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.2
+  SuggestExtensions: false
+
+Style/Documentation:
+  Enabled: false
+
+Metrics/ClassLength:
+  Max: 200
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+  Exclude:
+    - lib/circleci-tools/kpi/terminal_formatter.rb
+
+Metrics/MethodLength:
+  Max: 25
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+
+Metrics/AbcSize:
+  Max: 35
+
+Metrics/BlockLength:
+  Max: 40
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/PerceivedComplexity:
+  Max: 10

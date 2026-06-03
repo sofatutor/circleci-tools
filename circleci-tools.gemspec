@@ -11,13 +11,21 @@ Gem::Specification.new do |spec|
   spec.license       = 'MIT'
 
   spec.bindir        = 'bin'
-  spec.executables   = ['circleci-metrics']
+  spec.executables   = ['circleci-metrics', 'circleci-kpis']
   spec.files         = [
+    'bin/circleci-kpis',
     'bin/circleci-metrics',
     'lib/circleci-tools/api_service.rb',
     'lib/circleci-tools/cloudwatch_metrics_service.rb',
     'lib/circleci-tools/data_aggregator.rb',
     'lib/circleci-tools/job_analyzer.rb',
+    'lib/circleci-tools/kpi.rb',
+    'lib/circleci-tools/kpi/cli.rb',
+    'lib/circleci-tools/kpi/client.rb',
+    'lib/circleci-tools/kpi/loader.rb',
+    'lib/circleci-tools/kpi/run.rb',
+    'lib/circleci-tools/kpi/terminal_formatter.rb',
+    'lib/circleci-tools/kpi/time_window.rb',
     'lib/circleci-tools/log_uploader.rb',
     'lib/circleci-tools/retryable.rb',
     'lib/circleci-tools/runner_calculator.rb',
@@ -33,13 +41,17 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'aws-sdk-cloudwatchlogs', '~> 1.106.0'
   spec.add_runtime_dependency 'aws-sdk-s3', '~> 1.178.0'
   spec.add_runtime_dependency 'base64', '~> 0.2.0'
+  spec.add_runtime_dependency 'connection_pool', '~> 2.4'
   spec.add_runtime_dependency 'csv', '~> 3.3.2'
   spec.add_runtime_dependency 'date', '~> 3.4.1'
   spec.add_runtime_dependency 'faraday', '~> 2.12.2'
+  spec.add_runtime_dependency 'faraday-net_http_persistent', '~> 2.0'
   spec.add_runtime_dependency 'fileutils', '~> 1.7.3'
   spec.add_runtime_dependency 'json', '~> 2.9.1'
   spec.add_runtime_dependency 'logger', '~> 1.6.5'
+  spec.add_runtime_dependency 'net-http-persistent', '~> 4.0'
   spec.add_runtime_dependency 'rexml', '~> 3.4.0'
+  spec.add_runtime_dependency 'term-ansicolor', '~> 1.11'
   spec.add_runtime_dependency 'thor', '~> 1.3.2'
   spec.add_runtime_dependency 'time', '~> 0.4.1'
   spec.add_runtime_dependency 'tty-progressbar', '~> 0.18.3'
