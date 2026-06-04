@@ -61,6 +61,12 @@ module CircleciTools
             prepend_spacing: messages.any?
           )
         )
+        messages.concat(
+          chain_duration_summary_messages_for(
+            first_attempt_workflows, blueprint_workflows,
+            prepend_spacing: messages.any?
+          )
+        )
 
         messages
       end
@@ -228,7 +234,10 @@ module CircleciTools
 
       def summary_duration_summary_for(workflows, type, blueprint_workflows:, job_statuses: ['success'])
         durations_by_name = job_durations_by_name_for(workflows, statuses: job_statuses)
+        duration_bracket_for(durations_by_name, type, blueprint_workflows:)
+      end
 
+      def duration_bracket_for(durations_by_name, type, blueprint_workflows:)
         summary_stage_blueprint_for(blueprint_workflows).map do |job_names|
           entries = job_names.map do |job_name|
             duration = summary_metric_for(durations_by_name[job_name], type)
@@ -295,6 +304,66 @@ module CircleciTools
         )
       end
 
+      def chain_duration_summary_messages_for(first_attempt_workflows, blueprint_workflows, prepend_spacing: false)
+        successful_chains, failed_chains = first_attempt_workflows.partition(&:eventually_succeeded?)
+
+        messages = %i[fastest slowest].map do |type|
+          chain_summary_message_for(type, successful_chains, blueprint_workflows, job_statuses: ['success'])
+        end
+        messages += %i[average p95].flat_map do |type|
+          [
+            chain_summary_message_for(type, successful_chains, blueprint_workflows, job_statuses: ['success']),
+            chain_summary_message_for(type, failed_chains, blueprint_workflows, job_statuses: ['failed'])
+          ]
+        end
+        messages.compact!
+        return [] if messages.empty?
+
+        messages.unshift('') if prepend_spacing
+        messages
+      end
+
+      def chain_summary_message_for(type, chains, blueprint_workflows, job_statuses:)
+        total_duration = summary_metric_for(chains.filter_map(&:chain_total_duration), type)
+        return unless total_duration
+
+        durations_by_name = chain_job_durations_by_name_for(chains, statuses: job_statuses)
+        bracket = duration_bracket_for(durations_by_name, type, blueprint_workflows:)
+        label = chain_summary_label_for(type, job_statuses)
+        BASE_TREE_PREFIX + summary_message_for(
+          label, format_duration(total_duration), bracket, type:, numeric_value: total_duration
+        )
+      end
+
+      def chain_summary_label_for(type, job_statuses)
+        base = case type
+               when :fastest then 'Fastest'
+               when :slowest then 'Slowest'
+               when :average then "Average #{job_statuses.include?('failed') ? 'FAILED' : 'SUCCESS'}"
+               when :p95 then "P95 #{job_statuses.include?('failed') ? 'FAILED' : 'SUCCESS'}"
+               end
+        "#{base} (incl. reruns)"
+      end
+
+      def chain_job_durations_by_name_for(chains, statuses:)
+        chains.each_with_object(Hash.new { |h, k| h[k] = [] }) do |chain, result|
+          totals = Hash.new(0)
+          present = {}
+          chain.chain_workflows.each do |workflow|
+            workflow.jobs.each do |job|
+              next unless statuses.include?(job['status'])
+
+              duration = workflow.numeric_job_duration_for(job)
+              next unless duration
+
+              totals[job['name']] += duration
+              present[job['name']] = true
+            end
+          end
+          present.each_key { |name| result[name] << totals[name] }
+        end
+      end
+
       def cost_summary_message_for(workflows, successful_workflows, blueprint_workflows)
         workflow = aggregate_cost_workflow_for(workflows, successful_workflows)
         return unless workflow
@@ -311,30 +380,34 @@ module CircleciTools
 
       def success_rate_summary_messages_for(first_attempt_workflows, blueprint_workflows,
                                             prepend_spacing: false)
-        overall_rate = percentage_for(
-          first_attempt_workflows.count(&:eventually_succeeded?), first_attempt_workflows.size
-        )
-        overall_one_shot = percentage_for(
-          first_attempt_workflows.count { |w| w.status == 'success' }, first_attempt_workflows.size
+        total = first_attempt_workflows.size
+        overall_rate = percentage_for(first_attempt_workflows.count(&:eventually_succeeded?), total)
+        overall_one_shot = percentage_for(first_attempt_workflows.count { |w| w.status == 'success' }, total)
+        overall_flaky = percentage_for(
+          first_attempt_workflows.count { |w| w.status != 'success' && w.eventually_succeeded? }, total
         )
         return [] unless overall_rate || overall_one_shot
 
         messages = []
         messages << '' if prepend_spacing
+        messages << rate_message_for(
+          'Success Rate', overall_rate, eventual_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
+        )
+        messages << rate_message_for(
+          'One-Shot Rate', overall_one_shot,
+          summary_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
+        )
+        messages << rate_message_for(
+          'Flaky Tests Rate', overall_flaky,
+          flaky_rate_summary_for(first_attempt_workflows, blueprint_workflows:), type: :flaky
+        )
+        messages.compact
+      end
 
-        if overall_rate
-          label = "Success Rate (#{@range_label})"
-          rate_summary = eventual_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
-          messages << (BASE_TREE_PREFIX + summary_message_for(label, overall_rate, rate_summary))
-        end
+      def rate_message_for(name, value, rate_summary, type: nil)
+        return unless value
 
-        if overall_one_shot
-          label = "One-Shot Rate (#{@range_label})"
-          rate_summary = summary_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
-          messages << (BASE_TREE_PREFIX + summary_message_for(label, overall_one_shot, rate_summary))
-        end
-
-        messages
+        BASE_TREE_PREFIX + summary_message_for("#{name} (#{@range_label})", value, rate_summary, type:)
       end
 
       def aggregate_cost_workflow_for(workflows, successful_workflows)
@@ -419,15 +492,37 @@ module CircleciTools
         summary_for_rates(rates_by_name, blueprint_workflows)
       end
 
+      def flaky_rates_by_name_for(first_attempt_workflows)
+        first_attempt_workflows.each_with_object(Hash.new do |h, k|
+          h[k] = { success_count: 0, total_count: 0 }
+        end) do |workflow, result|
+          outcomes = workflow.eventual_job_outcomes
+          workflow.jobs.each do |job|
+            next if job['status'] == 'not_run'
+
+            entry = result[job['name']]
+            entry[:total_count] += 1
+            recovered = job['status'] != 'success' && outcomes.dig(job['name'], :succeeded)
+            entry[:success_count] += 1 if recovered
+          end
+        end
+      end
+
+      def flaky_rate_summary_for(first_attempt_workflows, blueprint_workflows: first_attempt_workflows)
+        rates_by_name = flaky_rates_by_name_for(first_attempt_workflows)
+        summary_for_rates(rates_by_name, blueprint_workflows, invert: true)
+      end
+
       def summary_success_rate_summary_for(workflows, blueprint_workflows: workflows)
         rates_by_name = summary_success_rates_by_name_for(workflows)
         summary_for_rates(rates_by_name, blueprint_workflows)
       end
 
-      def summary_for_rates(rates_by_name, blueprint_workflows)
-        worst_rate = rates_by_name.values.filter_map do |rates|
+      def summary_for_rates(rates_by_name, blueprint_workflows, invert: false)
+        rate_values = rates_by_name.values.filter_map do |rates|
           percentage_value_for(percentage_for(rates[:success_count], rates[:total_count]))
-        end.min
+        end
+        worst_rate = invert ? rate_values.max : rate_values.min
 
         summary_stage_blueprint_for(blueprint_workflows).map do |job_names|
           entries = job_names.map do |job_name|
@@ -437,7 +532,7 @@ module CircleciTools
           end
 
           formatted = entries.map do |entry|
-            formatted_stage_entry(entry, nil, highlight_longest: false, worst_percentage: worst_rate)
+            formatted_stage_entry(entry, nil, highlight_longest: false, worst_percentage: worst_rate, invert:)
           end
           "[#{formatted.join('; ')}]"
         end.join(' -> ')
@@ -445,7 +540,7 @@ module CircleciTools
 
       def summary_message_for(label, value_text, duration_summary, type: nil, numeric_value: nil)
         formatted_value = value_text.rjust(5)
-        formatted_value = colorize_percentage(formatted_value) if value_text.match?(/\A\d+%\z/)
+        formatted_value = colorize_percentage(formatted_value, invert: type == :flaky) if value_text.match?(/\A\d+%\z/)
         formatted_value = colorize_p95_duration(formatted_value, numeric_value) if type == :p95 && numeric_value
         padding = ' ' * [SUMMARY_VALUE_START - label.size, 1].max
 
@@ -454,10 +549,10 @@ module CircleciTools
         message
       end
 
-      def formatted_stage_entry(entry, longest_duration, highlight_longest: true, worst_percentage: nil)
+      def formatted_stage_entry(entry, longest_duration, highlight_longest: true, worst_percentage: nil, invert: false)
         padded = entry[:formatted_duration].rjust(5)
         padded = colorize(padded, :red) if %w[failed error].include?(entry[:status])
-        padded = colorize_percentage(padded) if entry[:formatted_duration].match?(/\A\d+%\z/)
+        padded = colorize_percentage(padded, invert:) if entry[:formatted_duration].match?(/\A\d+%\z/)
         if worst_percentage && percentage_value_for(entry[:formatted_duration]) == worst_percentage
           padded = colorize(padded, :bold)
         end
@@ -508,8 +603,14 @@ module CircleciTools
         value.delete_suffix('%').to_i if value.match?(/\A\d+%\z/)
       end
 
-      def colorize_percentage(value)
+      def colorize_percentage(value, invert: false)
         percentage = value.delete_suffix('%').to_i
+        if invert
+          return colorize(value, :green) if percentage.zero?
+          return colorize(value, :yellow) if percentage <= 5
+
+          return colorize(value, :red)
+        end
         return colorize(value, :green) if percentage == 100
         return colorize(value, :red) if percentage < 95
         return colorize(value, :yellow) if percentage < 100

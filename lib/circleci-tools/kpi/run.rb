@@ -88,6 +88,11 @@ module CircleciTools
         chain_workflows.any? { |workflow| workflow.status == 'success' }
       end
 
+      def chain_total_duration
+        durations = chain_workflows.filter_map(&:duration)
+        durations.sum unless durations.empty?
+      end
+
       def eventual_job_outcomes
         chain_workflows.each_with_object({}) do |workflow, result|
           workflow.jobs.each do |job|
