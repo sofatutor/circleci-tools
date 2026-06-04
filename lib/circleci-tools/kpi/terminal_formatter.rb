@@ -380,13 +380,17 @@ module CircleciTools
 
       def success_rate_summary_messages_for(first_attempt_workflows, blueprint_workflows,
                                             prepend_spacing: false)
-        total = first_attempt_workflows.size
-        overall_rate = percentage_for(first_attempt_workflows.count(&:eventually_succeeded?), total)
-        overall_one_shot = percentage_for(first_attempt_workflows.count { |w| w.status == 'success' }, total)
-        overall_flaky = percentage_for(
-          first_attempt_workflows.count { |w| w.status != 'success' && w.eventually_succeeded? }, total
+        eventual_success_count, one_shot_success_count = success_counts_for(first_attempt_workflows)
+        overall_rate = percentage_for(
+          eventual_success_count, first_attempt_workflows.size
         )
-        return [] unless overall_rate || overall_one_shot
+        overall_one_shot = percentage_for(
+          one_shot_success_count, first_attempt_workflows.size
+        )
+        probably_flaky_rate = percentage_for(
+          eventual_success_count - one_shot_success_count, first_attempt_workflows.size
+        )
+        return [] unless overall_rate || overall_one_shot || probably_flaky_rate
 
         messages = []
         messages << '' if prepend_spacing
@@ -398,7 +402,7 @@ module CircleciTools
           summary_success_rate_summary_for(first_attempt_workflows, blueprint_workflows:)
         )
         messages << rate_message_for(
-          'Flaky Tests Rate', overall_flaky,
+          'Probably Flaky Rate', probably_flaky_rate,
           flaky_rate_summary_for(first_attempt_workflows, blueprint_workflows:), type: :flaky
         )
         messages.compact
@@ -408,6 +412,13 @@ module CircleciTools
         return unless value
 
         BASE_TREE_PREFIX + summary_message_for("#{name} (#{@range_label})", value, rate_summary, type:)
+      end
+
+      def success_counts_for(workflows)
+        [
+          workflows.count(&:eventually_succeeded?),
+          workflows.count { |w| w.status == 'success' }
+        ]
       end
 
       def aggregate_cost_workflow_for(workflows, successful_workflows)
