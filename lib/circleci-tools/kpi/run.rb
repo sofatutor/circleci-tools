@@ -80,6 +80,31 @@ module CircleciTools
         %w[failed error canceled unauthorized].include?(status)
       end
 
+      def chain_workflows
+        [self] + rerun_children.flat_map(&:chain_workflows)
+      end
+
+      def eventually_succeeded?
+        chain_workflows.any? { |workflow| workflow.status == 'success' }
+      end
+
+      def chain_total_duration
+        durations = chain_workflows.filter_map(&:duration)
+        durations.sum unless durations.empty?
+      end
+
+      def eventual_job_outcomes
+        chain_workflows.each_with_object({}) do |workflow, result|
+          workflow.jobs.each do |job|
+            next if job['status'] == 'not_run'
+
+            outcome = result[job['name']] ||= { ran: false, succeeded: false }
+            outcome[:ran] = true
+            outcome[:succeeded] ||= job['status'] == 'success'
+          end
+        end
+      end
+
       def clear_rerun_metadata
         @attributes.delete('rerun')
         @attributes.delete('rerun_parent_workflow')
