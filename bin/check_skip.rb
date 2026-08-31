@@ -7,14 +7,11 @@
 # and/or CI_SKIP_PATHS (comma-, whitespace- or JSON-array-separated). Every
 # changed file must match at least one rule for the run to be skipped.
 #
-# How the run is stopped is chosen with CI_SKIP_ACTION:
-#   cancel (default) - cancel the whole workflow through the CircleCI API. Use
-#                      when this step lives inside a job that other jobs
-#                      `require:`, so halting it would let them run anyway.
-#   halt             - end THIS job early and green via `circleci-agent step
-#                      halt`. Use when this step lives in a gate job that nothing
-#                      depends on (e.g. a setup job that would otherwise submit a
-#                      continuation config).
+# On a skip it calls `circleci-agent step halt`, which ends THIS job with a green
+# status and skips its remaining steps. Halt does NOT stop jobs that `require:`
+# this one, so every job that should be skipped has to run this check itself --
+# either as the first step of each such job, or once in a setup job whose later
+# `continuation/continue` step then never runs.
 #
 # Exits 0 in every non-fatal case: "do not skip" must never fail the build.
 # Runs as plain `ruby`, without bundler or ActiveSupport.
@@ -28,7 +25,6 @@ class CheckSkip
   GITHUB_API_ACCEPT = 'application/vnd.github+json'
   CIRCLE_API_HOST = 'circleci.com'
   FNMATCH_FLAGS = File::FNM_PATHNAME | File::FNM_EXTGLOB
-  DEFAULT_ACTION = 'cancel'
 
   def self.run
     new.run
@@ -238,38 +234,14 @@ class CheckSkip
     end
   end
 
-  # Stop the run. Never raises and never exits non-zero: if the chosen action is
-  # unavailable the build simply continues, which is the safe direction.
+  # End this job green and skip its remaining steps. Never raises and never exits
+  # non-zero: if the agent is unavailable the build simply continues, which is the
+  # safe direction.
   def skip!(reason)
     puts reason
-    case ENV.fetch('CI_SKIP_ACTION', DEFAULT_ACTION)
-    when 'halt' then halt_job
-    else cancel_workflow_if_possible
-    end
-    exit 0
-  end
-
-  # Ends THIS job early with a green status. Remaining steps do not run, so a
-  # setup job halted here never submits its continuation config.
-  def halt_job
     puts 'Halting this job (green); no further steps in it will run.'
-    return if system('circleci-agent', 'step', 'halt')
-
-    warn '[WARN] circleci-agent unavailable; cannot halt. Continuing.'
-  end
-
-  def cancel_workflow_if_possible
-    token = ENV['CIRCLE_CI_API_TOKEN'].to_s
-    workflow_id = ENV['CIRCLE_WORKFLOW_ID'].to_s
-    if token.empty? || workflow_id.empty?
-      puts 'CIRCLE_CI_API_TOKEN or CIRCLE_WORKFLOW_ID not set. Cannot cancel workflow.'
-      return
-    end
-
-    uri = URI.parse("https://circleci.com/api/v2/workflow/#{workflow_id}/cancel")
-    res = http_post(uri, token)
-    warn "Workflow cancel HTTP #{res.code}: #{res.body}" unless res.is_a?(Net::HTTPSuccess)
-    puts 'Workflow cancellation requested.'
+    warn '[WARN] circleci-agent unavailable; cannot halt. Continuing.' unless system('circleci-agent', 'step', 'halt')
+    exit 0
   end
 
   def glob?(rule)
@@ -326,14 +298,6 @@ class CheckSkip
 
     warn "[ERROR] HTTP #{res.code} from #{uri.host}#{uri.request_uri}: #{res.body}"
     nil
-  end
-
-  def http_post(uri, token)
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.use_ssl = true
-    req = Net::HTTP::Post.new(uri.request_uri)
-    req['Circle-Token'] = token
-    http.request(req)
   end
 
   def skip_line?(line)

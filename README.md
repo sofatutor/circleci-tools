@@ -96,7 +96,6 @@ Configuration is entirely by environment:
 | --- | --- |
 | `CI_SKIP_FILE` | Path to a gitignore-style file, one rule per line; `#` comments and blank lines ignored. |
 | `CI_SKIP_PATHS` | Inline rules — comma-separated, whitespace-separated, or a JSON array. |
-| `CI_SKIP_ACTION` | `cancel` (default) or `halt`. See below. |
 
 Rules from both sources are combined. The run is skipped only when **every**
 changed file matches at least one rule. With no rules at all, nothing is ever
@@ -107,21 +106,24 @@ directory and everything under it; `*` does not cross a `/`, but a pattern
 containing no `/` is also tried against the basename, so `*.md` matches
 `docs/guide.md`. Brace alternation works — `*.{md,mdc,markdown}`.
 
-**`CI_SKIP_ACTION` picks how the run is stopped**, which depends on where the
-step sits in the workflow:
+**Where you put the step matters.** On a skip the script calls `circleci-agent
+step halt`, which ends the current job with a green status and skips its
+remaining steps — but has no effect on jobs that `require:` it. Those still run.
+So there are two correct placements:
 
-- `cancel` — cancels the whole workflow through the CircleCI API. Use when the
-  step lives inside a job that other jobs `require:`, since ending that job
-  successfully would just let its dependents run. Needs `CIRCLE_CI_API_TOKEN`.
-  The pipeline ends up in the *canceled* state.
-- `halt` — ends only the current job, green, via `circleci-agent step halt`.
-  Remaining steps in that job do not run. Use when the step lives in a gate job
-  nothing depends on — notably a dynamic-config setup job, where halting means
-  the continuation config is never submitted and no downstream job is created.
+- **First step of every job you want skipped.** Each job gates itself and each
+  finishes green. Needed in a static config, where there is no other way to stop
+  a downstream job without failing or cancelling it.
+- **Once in a dynamic-config setup job.** Halting there means the later
+  `continuation/continue` step never runs, so no downstream job is ever created —
+  one check covers the whole pipeline.
+
+Putting it only in an upstream job of a static config does *not* work: that job
+goes green and its dependents run anyway.
 
 Anything short of a definite "skip" exits 0 and lets the build continue: an
-unreachable API, a missing token, an absent `circleci-agent`, or an
-undeterminable base commit all fail towards running the tests.
+absent `circleci-agent`, an unreachable API, or an undeterminable base commit all
+fail towards running the tests.
 
 ## Contributing
 
