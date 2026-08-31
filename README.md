@@ -74,6 +74,55 @@ bin/circleci-kpis kids --week 22      # sofatutor-kids, calendar week 22
 bin/circleci-kpis SPASS --days 14     # SPASS project, last 14 days
 ```
 
+### Skipping CI-irrelevant runs (`bin/check_skip.rb`)
+
+Decides whether the current commit changed anything CI cares about, and stops the
+run if not. Consumed over raw.githubusercontent by the app repos rather than
+shipped as a gem executable, because it has to run before bundler is available:
+
+```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/sofatutor/circleci-tools/<SHA-OR-TAG>/bin/check_skip.rb \
+  -o .circleci/tools/check_skip.rb
+ruby .circleci/tools/check_skip.rb && rm -f .circleci/tools/check_skip.rb
+```
+
+Pin to a SHA or tag. This script decides whether tests run at all, so an
+unpinned `refs/heads/main` fetch lets one push here change CI in every consumer.
+
+Configuration is entirely by environment:
+
+| Variable | Purpose |
+| --- | --- |
+| `CI_SKIP_FILE` | Path to a gitignore-style file, one rule per line; `#` comments and blank lines ignored. |
+| `CI_SKIP_PATHS` | Inline rules — comma-separated, whitespace-separated, or a JSON array. |
+| `CI_SKIP_ACTION` | `cancel` (default) or `halt`. See below. |
+
+Rules from both sources are combined. The run is skipped only when **every**
+changed file matches at least one rule. With no rules at all, nothing is ever
+skipped.
+
+Matching follows gitignore conventions: `docs` and `docs/` both match the
+directory and everything under it; `*` does not cross a `/`, but a pattern
+containing no `/` is also tried against the basename, so `*.md` matches
+`docs/guide.md`. Brace alternation works — `*.{md,mdc,markdown}`.
+
+**`CI_SKIP_ACTION` picks how the run is stopped**, which depends on where the
+step sits in the workflow:
+
+- `cancel` — cancels the whole workflow through the CircleCI API. Use when the
+  step lives inside a job that other jobs `require:`, since ending that job
+  successfully would just let its dependents run. Needs `CIRCLE_CI_API_TOKEN`.
+  The pipeline ends up in the *canceled* state.
+- `halt` — ends only the current job, green, via `circleci-agent step halt`.
+  Remaining steps in that job do not run. Use when the step lives in a gate job
+  nothing depends on — notably a dynamic-config setup job, where halting means
+  the continuation config is never submitted and no downstream job is created.
+
+Anything short of a definite "skip" exits 0 and lets the build continue: an
+unreachable API, a missing token, an absent `circleci-agent`, or an
+undeterminable base commit all fail towards running the tests.
+
 ## Contributing
 
 We welcome contributions to enhance the functionality of CircleCI Tools. Please follow these steps to contribute:
