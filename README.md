@@ -74,6 +74,57 @@ bin/circleci-kpis kids --week 22      # sofatutor-kids, calendar week 22
 bin/circleci-kpis SPASS --days 14     # SPASS project, last 14 days
 ```
 
+### Skipping CI-irrelevant runs (`bin/check_skip.rb`)
+
+Decides whether the current commit changed anything CI cares about, and stops the
+run if not. Consumed over raw.githubusercontent by the app repos rather than
+shipped as a gem executable, because it has to run before bundler is available:
+
+```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/sofatutor/circleci-tools/<SHA-OR-TAG>/bin/check_skip.rb \
+  -o .circleci/tools/check_skip.rb
+ruby .circleci/tools/check_skip.rb && rm -f .circleci/tools/check_skip.rb
+```
+
+Pin to a SHA or tag. This script decides whether tests run at all, so an
+unpinned `refs/heads/main` fetch lets one push here change CI in every consumer.
+
+Configuration is entirely by environment:
+
+| Variable | Purpose |
+| --- | --- |
+| `CI_SKIP_FILE` | Path to a gitignore-style file, one rule per line; `#` comments and blank lines ignored. |
+| `CI_SKIP_PATHS` | Inline rules — comma-separated, whitespace-separated, or a JSON array. |
+
+Rules from both sources are combined. The run is skipped only when **every**
+changed file matches at least one rule. With no rules at all, nothing is ever
+skipped.
+
+Matching follows gitignore conventions: `docs` and `docs/` both match the
+directory and everything under it; `*` does not cross a `/`, but a pattern
+containing no `/` is also tried against the basename, so `*.md` matches
+`docs/guide.md`. Brace alternation works — `*.{md,mdc,markdown}`.
+
+**Where you put the step matters.** On a skip the script calls `circleci-agent
+step halt`, which ends the current job with a green status and skips its
+remaining steps — but has no effect on jobs that `require:` it. Those still run.
+So there are two correct placements:
+
+- **First step of every job you want skipped.** Each job gates itself and each
+  finishes green. Needed in a static config, where there is no other way to stop
+  a downstream job without failing or cancelling it.
+- **Once in a dynamic-config setup job.** Halting there means the later
+  `continuation/continue` step never runs, so no downstream job is ever created —
+  one check covers the whole pipeline.
+
+Putting it only in an upstream job of a static config does *not* work: that job
+goes green and its dependents run anyway.
+
+Anything short of a definite "skip" exits 0 and lets the build continue: an
+absent `circleci-agent`, an unreachable API, or an undeterminable base commit all
+fail towards running the tests.
+
 ## Contributing
 
 We welcome contributions to enhance the functionality of CircleCI Tools. Please follow these steps to contribute:
