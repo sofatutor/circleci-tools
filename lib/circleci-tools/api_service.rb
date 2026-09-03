@@ -158,6 +158,39 @@ module CircleciTools
       JSON.parse(response.body)
     end
 
+    def fetch_resource_usage(job_id)
+      url = URI("https://dl.circleci.com/private/output/job/#{job_id}/usage")
+      @logger.debug("Fetching resource usage from: #{url}")
+      
+      request = Net::HTTP::Get.new(url)
+      request["Circle-Token"] = @api_token
+      request["Accept"] = "application/json"
+
+      begin
+        response = Net::HTTP.start(url.hostname, url.port, use_ssl: true) do |http|
+          http.request(request)
+        end
+        
+        @logger.debug("Response status: #{response.code}")
+        @logger.debug("Response body: #{response.body}") if response.code != '200'
+
+        case response.code
+        when '200'
+          JSON.parse(response.body)
+        when '401'
+          raise "Unauthorized: Please check your API token"
+        when '404'
+          raise "Job not found: #{job_id}"
+        else
+          raise "API Error (#{response.code}): #{response.body}"
+        end
+      rescue JSON::ParserError => e
+        raise "Invalid JSON response: #{e.message}"
+      rescue StandardError => e
+        raise "Failed to fetch resource usage: #{e.message}"
+      end
+    end
+
     private
 
     def connection
